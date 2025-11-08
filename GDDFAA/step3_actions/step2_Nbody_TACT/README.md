@@ -1,12 +1,11 @@
-###########################################################
 #README of Nbody-TACT.
-###########################################################
 # Nbody-TACT
 
-https://github.com/GuJianyu0/Nbody-TACT/
+Nbody-TACT: https://github.com/GuJianyu0/Nbody-TACT/
 
-- Upstream TACT (GPL-3.0): actions/angles library; please cite Sanders & Binney (2016) and Triaxial Stäckel Fudge (2015).
-- This fork: adds snapshot I/O, SCF/direct potentials, and batch per-particle actions.
+- Upstream TACT (GPL-3.0): actions/angles library; please cite Sanders & Binney (2016) and Triaxial Stackel Fudge (2015).
+
+- This fork: adds snapshot I/O, SCF/direct potentials, and batch per-particle actions in the triaxial Stackel Fudge method.
 
 Nbody-TACT is a sub-project of GroArnold. 
 GroArnold: https://github.com/GuJianyu0/GroArnold  
@@ -20,35 +19,42 @@ If you use Nbody-TACT, please cite this repository and Sanders & Binney (2016).
 
 ## Requirements
 
-Build tools: `g++` (C++11), `make`  
+Build tools: `g++` (C++11), `make`
+
 Libraries: `gsl`, `fftw3`, `eigen3`, `lapack`, `hdf5`, `mpich`, `python3`
 
 ## Installation
 
 cd Nbody-TACT/aa/
+
 bash step1_1_compile_all.bat
 
 ## Running
 
 cd Nbody-TACT/aa/
+
 bash step1_2_compile_SCF.bat
+
 bash step1_3_prepare_foci.bat
+
 bash step2_run.bat
 
 ## Changing from TACT (Sanders & Binney, 2016)
 
 What we extended in Nbody-TACT from original TACT:
+
 Most of the extensions are about snapshot data processing, potential computation (direct summation and SCF) and some robustness extensions to Nbody SCF potential.
+
 The modifications to original TACT are marked as "//gjy change" or "gjy add".
+
 Most of files step3_actions/step2_Nbody_TACT/pot/Inc/potential.h (and cpp), step2_Nbody_TACT/aa/inc/aa.h (and cpp), step2_Nbody_TACT/aa/Inc/stackel_aa.h (and cpp), step2_Nbody_TACT/aa/Inc/lmn_orb.h (and cpp).
-We also add some other files like step2_Nbody_TACT/DataInterface.h (and cpp) for snapshot data processing, and step2_Nbody_TACT/aa/mains/data.cpp for the main function to compute action variables for each particle.
+
+We also add some other files like step2_Nbody_TACT/DataInterface.h (and cpp) for snapshot data processing (triaxiality alignment by position and velocity center, total angular moment, total moment of inertia and total angular frequency), and step2_Nbody_TACT/aa/mains/data.cpp for the main function to batch per-particle actions in MPI.
 
 
 
 
-###########################################################
 #README of original TACT (Sanders & Binney, 2016).
-###########################################################
 # tact
 
 [![Build Status](https://travis-ci.org/jls713/tact.svg?branch=master)](https://travis-ci.org/jls713/tact)
