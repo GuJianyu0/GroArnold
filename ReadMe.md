@@ -1,6 +1,6 @@
 #README
 
-GroArnold: https://github.com/GuJianyu0/GroArnold
+GroArnold: https://github.com/starlifting1/GroArnold
 
 GroArnold is a computational framework designed to construct stable action-based distribution functions (DF) -- specifically, the Number Density Distribution Function of Actions for axisymmetric and triaxial galaxies and dark matter halos.
 

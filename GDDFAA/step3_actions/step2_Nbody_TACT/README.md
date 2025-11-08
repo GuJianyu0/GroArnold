@@ -1,14 +1,14 @@
 #README of Nbody-TACT.
 # Nbody-TACT
 
-Nbody-TACT: https://github.com/GuJianyu0/Nbody-TACT/
+Nbody-TACT: https://github.com/starlifting1/Nbody-TACT/
 
 - Upstream TACT (GPL-3.0): actions/angles library; please cite Sanders & Binney (2016) and Triaxial Stackel Fudge (2015).
 
 - This fork: adds snapshot I/O, SCF/direct potentials, and batch per-particle actions in the triaxial Stackel Fudge method.
 
 Nbody-TACT is a sub-project of GroArnold. 
-GroArnold: https://github.com/GuJianyu0/GroArnold  
+GroArnold: https://github.com/starlifting1/GroArnold  
 In-tree path: `GDDFAA/step3_actions/step2_Nbody_TACT/`
 
 ## Author
