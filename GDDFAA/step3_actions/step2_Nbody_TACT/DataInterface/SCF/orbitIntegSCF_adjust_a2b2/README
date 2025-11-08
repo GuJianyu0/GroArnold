@@ -1,0 +1,90 @@
+###############################################################################
+####version2: 
+
+The newest:
+Change some code of version1 and Wrap the version1 code in C++.
+Use the method of orbit shape instead of searching a2 and b2 root in version1.
+Let the prog can loop for multi energies~foci and get a table.
+
+How to compile and run:
+1. In ubuntu computer system, install gcc, g++ (high version), gfortran, 
+gsl library.
+2. For the original SCF code, copy files {scfmod, scfpar, scficoef, scfocoef} 
+to folder your_path_to_SCF_setting/.
+3. In linux terminal at folder SCF_foci/src/, input and enter 
+make #to compile
+make run #to run and get the data result file some_lmn_foci_Pot.txt.
+
+Someting might to be optimized moreover.
+###############################################################################
+
+
+
+###############################################################################
+####version1:
+
+This prog is an alternative to calclate energy-foci 
+table for Fudge Actions in TACT prog.
+Code is in shell, Fortran, C/C++ and Python.
+In this folder, the *.f code is by Chris Mihos,
+and other code is by Shiyan Zhong and Juanyu Gu.
+
+
+
+原始代码拷贝自 ~/Work/DevEnv/SCF/code-from-laohu/Run-Template
+
+使用 Gen-Triaxial 里演化来的粒子分布 halo+vel+pot.out 计算 SCF 展开系数。
+
+按照 Sanders 博士论文里的方法，给定初始位置（在y轴上）选取两条轨道，分别是
+绕着长轴(x)和绕着短轴(z)的闭合loop轨道。与Sanders不同的是，我们分别调整a2,
+b2的值让J_lambda最小化（实际是让dla=la_max-la_min最小化）。分别使用
+Adjust_a2.exe, Adjust_b2.exe 来调整。
+
+按照Sanders的说法，这两种轨道只有一个非零的作用量（J_mu或者J_nu）。原则上
+J_lambda应该为0（dla = 0），但实测不是。比如积分得到的椭圆形loop轨道的轴没
+有和坐标轴平行时就会出现dla>0。此时只能让 dla 最小化（也比较接近0了）。
+
+寻找最小值的方法来自 Numerical Recipe (2nd Edition), Chapter 10.1
+
+文件对应：
+(1) b2 ~ orbit around x-axis ~ v_z ~ in y-z plane
+(2) a2 ~ orbit around z-axis ~ v_x ~ in z-x plane
+
+### 使用说明
+
+按照目录顺序运行。
+
+1. SCF系数文件在0-SCF_coeff/中生成，按照数字顺序运行。
+   粒子数据由read_data.f90读入，可根据需要修改。只需读入mass,x,y,z。
+   Pot-Contour-*/ 用于查看三个坐标平面上的等势线。
+
+2. 进入1a-Integrate-around-x-axis/
+   使用 0-compile.bat 编译，然后运行 1-Run-and-plot.bat。干活的是Select-Orbit.exe
+   它将一个轨道积分多个周期，记录其在正y轴上截距（多个值）。调整初始速度，使截距
+   的分布范围(即ymax - ymin)最小化（闭合loop轨道理想情况下ymax=ymin，但实测达不到）。
+
+     **注意**初始位置在y轴上，其坐标值以命令行参数传入程序中。缺省值为1kpc
+
+     **注意**SCF-code.f 计算加速度、引力势只使用了m为偶数的项（代码：DO 180 m=0,l,2 ）。
+     也可选择只计算l为偶数的项（在scfpar里设置zeroodd 为 .TRUE. ）。
+
+     **注意**原则上x应恒等于0，但实际积分会出现x偏离0的情况，因为等势面椭球的三个轴
+     没有和坐标轴平行（似乎主要在小半径处）。我在Main-alt.f90中使用exact_on_plane来限定
+     轨道是否在一个坐标平面上。
+
+   最后把生成的 Orbit.dat 文件拷贝至 1b-Adjust_b2/
+   也可查看 png 图像，看轨道积分结果（只显示最后选中的轨道）。
+
+3. 在 1b-Adjust_b2/ 中，首先使用0-compile.sh编译。
+   运行 Adjust_b2.exe，它需要先读取 a2b2c2.txt，然后在a2,c2之间找到最佳的b2值。
+   结果写回 a2b2c2.txt 文件，同时将Delta_1, Delta_2写入文件 delta_i.txt。
+   最后可以运行2-Plot-orbit-single.sh 生成 png 图像查看结果：图中虚线为等tau线
+   红色-lambda, 蓝色-mu, 黑色-nu。
+
+     **注意**
+     我认为c2值不一定要固定为 1 kpc^2, 如果轨道的空间范围小于 ～1 kpc，可能需要
+     调低 c2 值，所以我把它也放在了a2b2c2.txt里。
+
+4. 调整 a2 的方法基本同上。注意不要随意把源代码拷贝到其它目录。
+###############################################################################
+

@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "iosfwd": "cpp",
+        "cmath": "cpp",
+        "ostream": "cpp",
+        "array": "cpp",
+        "complex": "cpp",
+        "thread": "cpp",
+        "iostream": "cpp",
+        "cstring": "cpp",
+        "string": "cpp",
+        "ratio": "cpp",
+        "cstdio": "cpp",
+        "vector": "cpp"
+    }
+}

@@ -1,0 +1,112 @@
+###################
+# Global parameters
+###################
+# Virial velocity of the galaxy [km/s]
+v200 			        200.0
+# Halo spin parameter
+lambda		 	        0.04
+# Refinement level of the PM potential grid 
+level_coarse		    	8
+# Refinement level of the plane plane density grid 
+level_grid_mid_dens		7
+# Refinement level of the PM turbulence grid 
+level_grid_turb		    	8
+# Refinement level of the PM gaussian field grid
+level_grid_dens_fluct   	7
+# Size of the PM grid [kpc]
+boxsize1			100.0
+boxsize2			50.0
+boxsize3			25.0
+# Dispersion for the Gaussian field fluctuations
+dens_fluct_sigma        	0.50
+# Physical injection scale of the random field fluctuations [kpc]
+dens_fluct_scale_inj        	2.00
+# Physical dissipation scale of the random field fluctuations [kpc]
+dens_fluct_scale_diss        	0.25
+dens_fluct_seed		    	1212
+# Seed for the random number generator
+seed			        1246
+
+#######################
+# Components parameters
+#######################
+
+#######################
+# Component 1: Halo
+#######################
+# Fraction of the virial mass in the component 1
+mass_frac1		        0.95
+# Number of particles for the component 1
+npart1			        1000000
+# Number of particles for the potential computation
+npart_pot1              	4000000
+# Component 1 density model
+# Available models:
+# 1  = Exponential disk + sech-z profile
+# 2  = Myamoto-Nagai profile
+# 3  = Exponential disk + exponential-z profile
+# 4  = Hernquist profile
+# 5  = Plummer profile
+# 6  = Jaffe profile
+# 7  = Isothermal profile
+# 8  = NFW profile 
+# 9  = Burkert
+# 10 = Einasto profile
+# 11 = Mestel profile
+# 12 = Kalnajs profile
+# 13 = Sersic profile
+# 14 = Toomre-Kuzmin profile
+# 15 = Uniform profile
+# 16 = Pseudo-isothermal profile
+model1			      	8
+# Scale length of the density profile [kpc]
+# If the value is zero, scale length is defined
+# by the concentration parameter
+scale_length1		    	0.
+# Concentration parameter
+# if positive, the scale length is recomputed to match the concentration
+# the concentration parameter of an NFW halo with a mass M200*mass_frac
+concentration1		    	13.0
+# Component 1 radial density cut [kpc] 
+cut1			        50.
+# Component 1 cartesian flatenning parameter
+flatx1			        1.00
+flaty1			        1.00
+flatz1			        1.00
+# Gaussian step for the MCMC Metropolis-Hasting particle postionning algorithm,
+# expressed in units of the component scale length. Default value is 0.5.
+mcmc_step1		        0.3
+# Maximum velocity for the component 1 particles in expressed in units of escape velocity
+vmax_esc1		        5.0
+# Particles type (GADGET format -- 0=Gas,1=Halo,2=Disk,3=Bulge,4=Stars)
+type1			        1
+# Streaming fraction of the component 1
+stream_fraction1	    	0.0
+# Method used to compute the angular momentum radial profile
+stream_method1			1
+# Radius at which the density profile should have the exact same
+# value as the NFW profile with the previously defined concentration
+# and with a mass M200*mass_frac [kpc]
+radius_nfw1		        -1.0
+
+###########################
+# Component 2: Gaseous halo
+###########################
+mass_frac2		        0.05
+npart2			        10000000
+npart_pot2              	7000000
+model2			        8
+scale_length2		    	0.
+concentration2		    	13.0
+cut2			        50.
+flatx2			        1.00
+flaty2			        1.00
+flatz2			        1.00
+mcmc_step2		        0.3
+type2			        0
+stream_fraction2		0.0
+stream_method2			1
+metal2                  	1e-4
+# Compute gas temperature to reach hydrostatic equilibrium
+thermal_eq2		        1
+
