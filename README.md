@@ -71,15 +71,15 @@ Other files in the same folder: "IC_DICE_manucraft.params" for DICE prog about g
 
 GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/
 
-#run the full pipeline for all models in YAML
-
-#one need open terminal
+```bash
+#Run the full pipeline for all models in terminal
 
 python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all
 
-#one can leave terminal by nohup
+#Or one can leave terminal by nohup
 
 nohup python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all &
+```
 
 ### resume
 #To resume at a specific point; enable --resume_point would not backup galaxy_general/ or galaxy_general_XXX/ folders.
@@ -96,6 +96,7 @@ nohup python3 workflow_wrapper.py GroArnold_framework/initial_conditions/setting
 
 #resume_point 6. compare only (post-run compare step)
 
+```bash
 #run from example resume point 2 in modelnumber 0 till run to end for all galaxy modelnumers in whole prog (recommanded): run point 2 in modelnumber 1, run point 3 in modelnumber 1, ..., run point 5 in modelnumber 1 (rename galaxy folder (galaxy_general/ as the current) into folder about modelnumber 1); make galaxy folder for modelmuber 3, run point 1 in model number 3, ... (suppose modelnumber 3 is the max number); run point 6 for all modelnumbers (compare models)
 
 python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 1 --modelnumber 1
@@ -103,10 +104,12 @@ python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_
 #run from example resume point 2 in modelnumber 0 and then exit immediately (debug mode): run point 2 in modelnumber 0, exit the whole prog without any other running
 
 python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 0 --modelnumber 1
+```
 
-### checking running
-#check whether running
+### Checking running
+#Check whether running (optional).
 
+```bash
 jobs -l
 
 ps -aux|egrep 'dice|mpirun|Gadget2|out.exe|data.exe|fit_galaxy_distribution_function.py|plot_action_figs.py'
@@ -114,6 +117,7 @@ ps -aux|egrep 'dice|mpirun|Gadget2|out.exe|data.exe|fit_galaxy_distribution_func
 #kill the controller if detached
 
 kill [the id about workflow_wrapper.py list]
+```
 
 ## (4) Result
 suppose your_galaxy_model is Ein_multicomp_spinL_axisLH. The result data is at GroArnold_framework/GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/Ein_multicomp_spinL_axisLH/fit/.
