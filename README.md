@@ -23,15 +23,16 @@ If you use GroArnold, please cite this repository and Sanders & Binney (2016).
 ## Quickstart
 
 ```bash
-# clone
+# clone and rename
 git clone https://github.com/starlifting1/GroArnold.git
-cd GroArnold
+mv GroArnold-master/ GroArnold_framework/
+cd GroArnold_framework/
 
-# read ./install_and_run/installation_guide.md and install Dependencies.
+#read GroArnold_framework/install_and_run/installation_guide.md and install Dependencies.
 
 # run the full pipeline on the provided example model
-cd install_and_run/
-python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all
+cd GroArnold_framework/install_and_run/
+python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all
 ```
 
 ## Settings you will edit most
@@ -53,12 +54,12 @@ Environment: Ubuntu 20.04 system or higher.
 
 Dependencies: `gcc`, `g++`, `gfortran`, `cmake`, `gsl`, `fftw3`, `eigen3`, `lapack`, `hdf5`, `mpich`, `python3`
 
-Please download, compile and install packages in the instructions of "./install_and_run/installation_guide.md".
+Please download, compile and install packages in the instructions of "GroArnold_framework/install_and_run/installation_guide.md".
 
 Note that the GroArnold framework depends on too much niche packages, so the installation and subsequent development may be inconvenient.
 
 ## (2) Settings
-File "./install_and_run/initial_conditions/settings_{your_galaxy_model}/unified_settings.yaml" is the Unified settings for some manners of the entire GroArnold program; 
+File "GroArnold_framework/install_and_run/initial_conditions/settings_{your_galaxy_model}/unified_settings.yaml" is the Unified settings for some manners of the entire GroArnold program; 
 
 Other files in the same folder: "IC_DICE_manucraft.params" for DICE prog about galaxy initial condition (you may need to reset a lot for another galaxy), these files has some important parameters of initial condition, e.g. mass fraction, scale length, particle count of each component, while some parameters would not strict after generating and simulation; 
 
@@ -68,17 +69,17 @@ Other files in the same folder: "IC_DICE_manucraft.params" for DICE prog about g
 ### running all
 #Suppose your_galaxy_model is Ein_multicomp_spinL_axisLH and your YAML settings, IDCE settings and Gadget2 settings file lives in:
 
-./initial_conditions/settings_Ein_multicomp_spinL_axisLH/
+GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/
 
 #run the full pipeline for all models in YAML
 
 #one need open terminal
 
-python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all
+python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all
 
 #one can leave terminal by nohup
 
-nohup python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all &
+nohup python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ all &
 
 ### resume
 #To resume at a specific point; enable --resume_point would not backup galaxy_general/ or galaxy_general_XXX/ folders.
@@ -97,11 +98,11 @@ nohup python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_sp
 
 #run from example resume point 2 in modelnumber 0 till run to end for all galaxy modelnumers in whole prog (recommanded): run point 2 in modelnumber 1, run point 3 in modelnumber 1, ..., run point 5 in modelnumber 1 (rename galaxy folder (galaxy_general/ as the current) into folder about modelnumber 1); make galaxy folder for modelmuber 3, run point 1 in model number 3, ... (suppose modelnumber 3 is the max number); run point 6 for all modelnumbers (compare models)
 
-python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 1 --modelnumber 1
+python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 1 --modelnumber 1
 
 #run from example resume point 2 in modelnumber 0 and then exit immediately (debug mode): run point 2 in modelnumber 0, exit the whole prog without any other running
 
-python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 0 --modelnumber 1
+python3 workflow_wrapper.py GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/ --resume_point 2 0 --modelnumber 1
 
 ### checking running
 #check whether running
@@ -115,7 +116,7 @@ ps -aux|egrep 'dice|mpirun|Gadget2|out.exe|data.exe|fit_galaxy_distribution_func
 kill [the id about workflow_wrapper.py list]
 
 ## (4) Result
-suppose your_galaxy_model is Ein_multicomp_spinL_axisLH. The result data is at ./GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/Ein_multicomp_spinL_axisLH/fit/.
+suppose your_galaxy_model is Ein_multicomp_spinL_axisLH. The result data is at GroArnold_framework/GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/Ein_multicomp_spinL_axisLH/fit/.
 
 
 
@@ -224,22 +225,22 @@ archivePrefix = {arXiv},
 # Structures
 
 ## Files dictionary
-./install_and_run/: the path about installation and running.
+GroArnold_framework/install_and_run/: the path about installation and running.
 
-./GDDFAA/: GDDFAA/ (Galaxy Gynamics Distribution Function based on Angle-Actions) is the path contains most source code files and running result data.
+GroArnold_framework/GDDFAA/: GDDFAA/ (Galaxy Gynamics Distribution Function based on Angle-Actions) is the path contains most source code files and running result data.
 
-./GDDFAA/dependencies/: the path about dependencies.
+GroArnold_framework/GDDFAA/dependencies/: the path about dependencies.
 
-./GDDFAA/step1_galaxy_IC_preprocess/: generating initial condition, about module 1.
+GroArnold_framework/GDDFAA/step1_galaxy_IC_preprocess/: generating initial condition, about module 1.
 
-./GDDFAA/step2_Nbody_simulation/: Nbody simulation, about module 1.
+GroArnold_framework/GDDFAA/step2_Nbody_simulation/: Nbody simulation, about module 1.
 
-./GDDFAA/step3_actions/: triaxility alignment and actions computing, about module 2 and module 3.
+GroArnold_framework/GDDFAA/step3_actions/: triaxility alignment and actions computing, about module 2 and module 3.
 
-./GDDFAA/step1_galaxy_IC_preprocess/: fit and plot, about module 4.
+GroArnold_framework/GDDFAA/step1_galaxy_IC_preprocess/: fit and plot, about module 4.
 
 ## Path to result data
-./GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/galaxy_general_{modelname}/: galaxy result data; 
+GroArnold_framework/GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/galaxy_general_{modelname}/: galaxy result data; 
 
 where txt/snapshot_%03d.txt%(snapshot_ID) are files about snapshot data like position-velocity before triaxility alignment, 
 
@@ -248,12 +249,12 @@ aa/snapshot_%03d.action.method_all%(snapshot_ID) are files about snapshot data l
 and the fit/ contains figures.
 
 ## Some important code files
-./install_and_run/workflow_wrapper.py: the workflow controller.
+GroArnold_framework/install_and_run/workflow_wrapper.py: the workflow controller.
 
-./GDDFAA/step1_galaxy_IC_preprocess/step2_select_generate_IC_DICE/src/dice_structure.c: the DICE source file contains profile models of galaxy for user setting before running DICE; we have modified the code for more profile models than original code.
+GroArnold_framework/GDDFAA/step1_galaxy_IC_preprocess/step2_select_generate_IC_DICE/src/dice_structure.c: the DICE source file contains profile models of galaxy for user setting before running DICE; we have modified the code for more profile models than original code.
 
-./GDDFAA/step3_actions/step2_Nbody_TACT/DataInterface/DataInterface.h: the interface for snapshot data processing (triaxiality alignment by position and velocity center, total angular moment, total moment of inertia and total angular frequency).
+GroArnold_framework/GDDFAA/step3_actions/step2_Nbody_TACT/DataInterface/DataInterface.h: the interface for snapshot data processing (triaxiality alignment by position and velocity center, total angular moment, total moment of inertia and total angular frequency).
 
-./GDDFAA/step3_actions/step2_Nbody_TACT/aa/mains/data.cpp: the file we added into Nbody_TACT for the main function to batch per-particle actions in MPI.
+GroArnold_framework/GDDFAA/step3_actions/step2_Nbody_TACT/aa/mains/data.cpp: the file we added into Nbody_TACT for the main function to batch per-particle actions in MPI.
 
-./GDDFAA/step4_data_process/data_process/fit_galaxy_distribution_function.py: the file to fit DF based on actions.
+GroArnold_framework/GDDFAA/step4_data_process/data_process/fit_galaxy_distribution_function.py: the file to fit DF based on actions.
