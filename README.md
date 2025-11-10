@@ -137,7 +137,7 @@ Module 3: Nbody-TACT. Angle-action variables computation for all particles in a 
 
 Extanded from TACT (https://github.com/jls713/tact, in C++ code).
 
-- Upstream TACT (GPL-3.0): actions/angles library; please cite Sanders & Binney (2016) and Triaxial Stackel Fudge (2015).
+- Upstream TACT (GPL-3.0): actions/angles library; please cite Sanders & Binney (2016).
 
 - This fork: adds snapshot I/O, SCF/direct potentials, and batch per-particle actions in the triaxial Stackel Fudge method.
 
@@ -217,6 +217,24 @@ archivePrefix = {arXiv},
 	eprint = {1412.2093},
 	primaryClass = {astro-ph.GA},
 	adsurl = {https://ui.adsabs.harvard.edu/abs/2015MNRAS.447.2479S},
+	adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+@ARTICLE{S16,
+	author = {{Sanders}, Jason L. and {Binney}, James},
+	title = "{A review of action estimation methods for galactic dynamics}",
+	journal = {\mnras},
+	keywords = {methods: numerical, galaxies: kinematics and dynamics, Astrophysics - Astrophysics of Galaxies},
+	year = 2016,
+	month = apr,
+	volume = {457},
+	number = {2},
+	pages = {2107-2121},
+	doi = {10.1093/mnras/stw106},
+	archivePrefix = {arXiv},
+	eprint = {1511.08213},
+	primaryClass = {astro-ph.GA},
+	adsurl = {https://ui.adsabs.harvard.edu/abs/2016MNRAS.457.2107S},
 	adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 
