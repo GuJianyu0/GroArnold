@@ -1,8 +1,6 @@
-#README
+#README of GroArnold
 
-# GroArnold
-
-## Introduction
+# Introduction
 
 GroArnold is a computational framework designed to construct stable action-based distribution functions (DF) -- specifically, the Number Density Distribution Function of Actions for axisymmetric and triaxial galaxies and dark matter halos.
 
@@ -10,11 +8,17 @@ GroArnold: https://github.com/starlifting1/GroArnold
 
 Pipeline: initial conditions (DICE) -> N-body (GADGET-2) -> triaxiality alignment -> actions per particle (TACT-derived Nbody-TACT) -> DF fit & plots.
 
-Environment: Ubuntu ≥ 20.04
+Environment: Ubuntu >= 20.04
 
 Dependencies: `gcc g++ gfortran cmake gsl fftw3 eigen3 lapack hdf5 mpich python3`
 
 License: GPL-3.0
+
+## Author
+
+Jian-Yu Gu et al.
+
+If you use GroArnold, please cite this repository and Sanders & Binney (2016).
 
 ## Quickstart
 
@@ -38,7 +42,7 @@ IC_DICE_manucraft.params — DICE IC details (masses, scale lengths, counts).
 
 run.param — GADGET-2 runtime options.
 
-More details are in below.
+More details are in below sections of this file if you need.
 
 
 
@@ -144,6 +148,8 @@ It is recommanded to learn about the dependencies e.g. DICE, gadget, TACT for mo
 
 ## How to cite
 References you may cite if using GroArnold.
+
+#@ARTICLE{} Gu et al. ()
 
 @ARTICLE{P14,
 	author = {{Perret}, V. and {Renaud}, F. and {Epinat}, B. and {Amram}, P. and {Bournaud}, F. and {Contini}, T. and {Teyssier}, R. and {Lambert}, J. -C.},
