@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-###########################################################
-# This file is an install guide for GroArnold (GDDFAA) prog 
-# -- a framework for compution DF based on angle-actions of 
-# triaxial galaxies.
-###########################################################
+# Installation
+#This file is an install guide for GroArnold (GDDFAA) prog -- a framework for compution DF based on angle-actions of triaxial galaxies.
 
+#[note] !!!! This is just a instruction, and do not run this directly.
 
-
-#### prepare and install
+```bash
+#prepare and install
 echo -e "Begin to install ... \n"
 set -e -u
+```
 
-## !!!! This is just a instruction, and do not run this directly.
 
-####[steps]: step0. preparing
+
+## step0. Preparing
+
+```bash
 #: [note] one should replace folder_main into your actual path to GroArnold_framework/
 # folder_main=path/to/GroArnold_framework/
 folder_main=${HOME}/workroom/0prog/GroArnold_framework/
@@ -27,24 +28,27 @@ folder_actions=${folder_main}GDDFAA/step3_actions/
 
 cd ${folder_main}
 echo -e "#now at folder: ${PWD}"
+```
 
 
 
-####[steps]: step1. configure environment
+## step1. Dependencies
+
+```bash
 is_install_environment=0
 if [ ${is_install_environment} -eq 1 ]; then
     echo -e "Do configure environment."
     cd ${folder_packages}
     echo -e "#now at folder: ${PWD}"
 
-    ##1. configure enviroment in Ubuntu 20.04
+    ##1. configure enviroment in Ubuntu 20.04 or higher
     #[note]: If you have configured them but the version is wrong, 
-    #\ please deal with them or use a new computer software system.
+    #\ please install them in a local folder.
     
     # sudo apt update
     # sudo apt install gcc g++ gfortran
     # sudo apt install python3 python3-pip
-    # sudo apt install git wget cmake mpich
+    # sudo apt install git cmake mpich
     # sudo apt install libgsl-dev
     # sudo apt install libfftw3-dev
     # sudo apt install libeigen3-dev
@@ -56,24 +60,25 @@ if [ ${is_install_environment} -eq 1 ]; then
 
     ##2. delete all software folder and data before
     #[note]: If you can not download them automatically, 
-    #\ please download manually and put to the path correctly
-    #\ the packages should provided instead of downloading by user
+    #\ please download manually and put to the path correctly.
     
-    # git packages_XX
+    # git packages_XXX
 
     cd ${folder_packages}
     echo -e "#now at folder: ${PWD}"
 fi
+```
 
 
 
-####[steps]: step2. install small
+## step2. Install sub-progs
+
+```bash
+### 1. Install programs for initial conditions and other functions
 is_install_IC=1
 if [ ${is_install_IC} -eq 1 ]; then
-    ## 1. install programs for initial conditions and other functions
     echo -e "install DICE:\n"
     #: move (only at the first time)
-    # # wget #??
     # tar -zxvf DICE_galaxy_initial_conditions.tar.gz
     # mv DICE_galaxy_initial_conditions/ ${folder_main}GDDFAA/step1_galaxy_IC_preprocess/
     # cd ${folder_main}GDDFAA/step1_galaxy_IC_preprocess/
@@ -107,9 +112,9 @@ fi
 
 
 
+### 2. install packages for simulation: 
 is_install_simulation=0
 if [ ${is_install_simulation} -eq 1 ]; then
-    ## 2. install packages for simulation: 
     #\ mpi, gsl, fftw2, hdf5 -> Gadget2.0.7
     cd ${folder_packages}
     echo -e "#now at folder: ${PWD}"
@@ -167,24 +172,11 @@ if [ ${is_install_simulation} -eq 1 ]; then
     echo -e "#now at folder: ${PWD}"
 fi
 
-is_install_process=0
-if [ ${is_install_process} -eq 1 ]; then
-    ## 4. install python packages #??
-    echo -e "install data_process part (mainly python3):\n"
-    # pip3 install numpy matplotlib scipy
-    # pip3 install sklearn pandas opencv-python #pytorch
-    # pip3 install traceback copy pdb tqdm
-    # pip3 install emcee corner
-    # pip3 install astropy galpy GALA 
-    cd ${folder_packages}
-    echo -e "#now at folder: ${PWD}"
-fi
-
 
 
 is_install_actions=0
 if [ ${is_install_actions} -eq 1 ]; then
-    ## 3. install packages for actions
+    ### 3. install packages for actions
     cd ${folder_packages}
     echo -e "#now at folder: ${PWD}"
 
@@ -252,5 +244,23 @@ if [ ${is_install_actions} -eq 1 ]; then
     echo -e "#now at folder: ${PWD}"
 fi
 
+
+
+is_install_process=0
+if [ ${is_install_process} -eq 1 ]; then
+    ### 4. install python packages
+    echo -e "install data_process part (mainly python3):\n"
+    # pip3 install numpy matplotlib scipy
+    # pip3 install sklearn pandas opencv-python #pytorch
+    # pip3 install traceback copy pdb tqdm
+    # pip3 install emcee corner
+    # pip3 install astropy galpy GALA 
+    cd ${folder_packages}
+    echo -e "#now at folder: ${PWD}"
+fi
+```
+
+```bash
 set +e +u
 echo -e "End to install.\n"
+```
