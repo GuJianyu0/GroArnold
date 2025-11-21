@@ -1,0 +1,1232 @@
+// ============================================================================
+/// \file inc/potential.h
+// ============================================================================
+/// \author Jason Sanders
+/// \date 2014-2015
+/// Institute of Astronomy, University of Cambridge (and University of Oxford)
+// ============================================================================
+
+// ============================================================================
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// ============================================================================
+/*! \brief Potential classes
+ *
+ *  We give a list of the available potentials. Most potentials are
+ *  self-documented, in that they contain a string that outputs their info.
+
+ *  1. Potential_JS -- Base class
+ *  2. SphericalPotential -- Base spherical class
+ *  3. IsochronePotential -- Isochrone spherical potential
+ *  4. StackelOblate_PerfectEllipsoid -- axisymmetric oblate Stackel potential perfect ellipsoid
+ *  5. StackelTriaxial -- triaxial perfect ellipsoid
+ *  6. Logarithmic -- triaxial logarithmic potential
+ *  7. PowerLaw -- triaxial power-law potential
+ *  8. Isochrone -- triaxial isochrone potential
+ *  9. HarmonicOscillator -- triaxial harmonic oscillator
+ *  10. Dehnen -- spherical Dehnen potential
+ *  11. MiyamotoNagai_JS -- axisymmetric Miyamoto-Nagai potential
+ *  11. NFW -- triaxial NFW potential
+ *  12. Hernquist -- triaxial Hernquist potential
+ *  13. Bulge -- triaxial Jaffe bulge potential
+ *  14. GalPot -- wrapper for Torus GalPot potential
+ *  15. MultiComponentPotential -- sum of potentials
+ *  16. MultiComponentSphericalPotential -- sum of spherical potentials
+ *  17. NFWSpherical -- spherical NFW potential
+ *  18. HernquistSpherical -- spherical Hernquist potential
+ *  19. PowerLawSpherical-- spherical power-law potential
+ *  20. BowdenNFW -- flattened NFW from Bowden et al.(2014)
+ *  21. WrapperTorusPotential -- wraps potentials from Torus code
+ *  22. PowerLawSphericalExpCut -- Spherical power law with exponential cutoff
+ */
+//============================================================================
+
+#ifndef POTENTIAL_H
+#define POTENTIAL_H
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <memory>
+#include <cmath>
+#include <gsl/gsl_integration.h>
+#include "coordsys.h"
+#include "coordtransforms.h"
+#include "GSLInterface/GSLInterface.h"
+#ifdef TORUS
+#include "falPot.h"
+#include "Torus.h"
+#endif
+
+#include "../../DataInterface/DataInterface.h" //gjy add
+
+//============================================================================
+/// General base class for Potential_JS
+//============================================================================
+class Potential_JS{
+public:
+	Potential_JS(){;}
+	Potential_JS(Stage* pSTAGE_){
+		pSTAGE = pSTAGE_;
+	}
+
+	//// settings
+	Stage* pSTAGE;
+	int algorithm = 0; 	/* 0: sum; 1: other formula; 2: RBF; 3: SPH; 4: SCF; 5. other. */
+						/* algorithm of how to calculate potential, differential of potential, density and so on;
+							this int variable will be decomposed to four bool variables FEDCBA(2), 1 is yes:
+							A: is potential by direcly summation without efficiency optimization;
+							B: is potential by direcly summation with tree;
+							C: is differential of potential by difference;
+							D: is potential by self-consistant field (SCF);
+							E: is potential by Poisson equation;
+							F: is density by kernel density estimation;
+						*/
+	int particle_ID = -1; /* partical id */ //gjy add
+	double t_temp = -1e10; /* particals system time */ //gjy add
+
+	void set_algorithm(int algorithm1){algorithm=algorithm1;} //gjy add
+	void set_partical_ID(int particle_ID1){particle_ID=particle_ID1;} //gjy add
+	void set_time(double t1){t_temp = t1;} //gjy add
+
+	inline virtual std::string name(void) const{
+		return "You haven't written a description of this potential"; }
+	inline virtual std::string params(void) const{ return "No param list"; }
+
+	////potential and forces 
+	inline virtual double Phi(const VecDoub& x, int coor=0){ //gjy changed //t should be added??
+	// inline virtual double Phi(const VecDoub& x){
+		/* potential at Cartesian x 				 */
+		/* -- to be overridden by derived classes -- */
+		// return 0.;
+		// std::cout<<"PotentialData_ ";
+		return pSTAGE->potential_t(x, t_temp, particle_ID, coor, algorithm);
+	}
+
+	inline virtual double Phi_r(double r){ //gjy add
+		// double r = x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
+		return Phi({r,0.,0.}); //gjy comment: or average
+	}
+	inline virtual double dPhi_r(double r){ //gjy add
+		// double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+		// double dP = dPhi_r(r)/r;
+		// return {-x[0]*dP,-x[1]*dP,-x[2]*dP};
+		return Forces({r, 0., 0.}, 1)[0]; //gjy comment: not done
+	}
+
+	inline virtual VecDoub Forces(const VecDoub& x, int coor=0){ //gjy add: by F sum
+	// inline virtual VecDoub Forces(const VecDoub& x){
+		/* forces at Cartesian x 					 */
+		/* -- to be overridden by derived classes -- */
+		// VecDoub F = pSTAGE->forces_t(x, t_temp, particle_ID, coor, algorithm);
+		// DEBUG_PRINT_V1d(1, F, "Forces");
+		// return F;
+		return pSTAGE->forces_t(x, t_temp, particle_ID, coor, algorithm);
+	}
+	inline virtual VecDoub Forces_diff(const VecDoub &x, double dx = 0.1, int coor=0){ //gjy add: by pot diff
+		double Phi__x = - ( Phi({x[0]-2*dx, x[1], x[2]}) - 8*Phi({x[0]-dx, x[1], x[2]}) + 8*Phi({x[0]+dx, x[1], x[2]}) - Phi({x[0]+2*dx, x[1], x[2]}) ) / (12*dx);
+		double Phi__y = - ( Phi({x[0], x[1]-2*dx, x[2]}) - 8*Phi({x[0], x[1]-dx, x[2]}) + 8*Phi({x[0], x[1]+dx, x[2]}) - Phi({x[0], x[1]+2*dx, x[2]}) ) / (12*dx);
+		double Phi__z = - ( Phi({x[0], x[1], x[2]-2*dx}) - 8*Phi({x[0], x[1], x[2]-dx}) + 8*Phi({x[0], x[1], x[2]+dx}) - Phi({x[0], x[1], x[2]+2*dx}) ) / (12*dx);
+		return {Phi__x, Phi__y, Phi__z};
+	}
+
+	inline virtual double density(const VecDoub& x){ //gjy changed
+		/* density at Cartesian x 		   			 */
+		/* -- to be overridden by derived classes -- */
+		// return pSTAGE->density_t(x,t, coor); //gjy add: te be continued...
+		return 0.;
+	}
+
+	////some other functions
+	inline virtual double Vc(double R){
+		/* circular velocity  at polar R 			*/
+		/* -- to be overridden by derived classes -- */
+		return 0.;
+	}
+	inline double Mass(double r){ //??
+		/* returns mass in spherical r*/
+		return r*r*(-Forces({r,0.,0.}, 1)[0])/conv::G; //gjy add: coor
+	}
+
+	inline double H(const VecDoub& xv){
+		/* returns Hamiltonian at Cartesian (x,v) */
+		assert(xv.size()>=6);
+		VecDoub x = {xv[0],xv[1],xv[2]};
+		// cout<<"kinetic and potential is: "; //gjy add
+		// cout<<0.5*(xv[3]*xv[3]+xv[4]*xv[4]+xv[5]*xv[5])<<" "<<Phi(x)<<" "; printVector(xv);
+// DEBUG_PRINT_I(11);
+		return 0.5*(xv[3]*xv[3]+xv[4]*xv[4]+xv[5]*xv[5]) + Phi(x);
+	}
+
+// 	inline virtual double H_virt(const VecDoub& xv){
+// 		/* returns Hamiltonian at Cartesian (x,v) */
+// 		assert(xv.size()>=6);
+// 		VecDoub x = {xv[0],xv[1],xv[2]};
+// 		// cout<<"kinetic and potential is: "; //gjy add
+// 		// cout<<0.5*(xv[3]*xv[3]+xv[4]*xv[4]+xv[5]*xv[5])<<" "<<Phi(x)<<" "; printVector(xv);
+// DEBUG_PRINT_I(21);
+// 		return 0.5*(xv[3]*xv[3]+xv[4]*xv[4]+xv[5]*xv[5])+Phi(x);
+// 	}
+
+	inline double L(const VecDoub& xv){
+		/* returns ang mom at Cartesian (x,v) */
+		assert(xv.size()>=6);
+		double Lx = xv[1]*xv[5]-xv[2]*xv[4];
+		double Ly = xv[2]*xv[3]-xv[0]*xv[5];
+		double Lz = xv[0]*xv[4]-xv[1]*xv[3];
+		return sqrt(Lx*Lx+Ly*Ly+Lz*Lz);
+	}
+	inline VecDoub Lvec(const VecDoub& xv){
+		/* returns ang mom at Cartesian (x,v) */
+		assert(xv.size()>=6);
+		return {xv[1]*xv[5]-xv[2]*xv[4],
+				xv[2]*xv[3]-xv[0]*xv[5],
+				xv[0]*xv[4]-xv[1]*xv[3]};
+	}
+	inline double Lz(const VecDoub& xv){
+		assert(xv.size()>=6);
+		/* returns z-component of angular momentum at Cartesian (x,v) */
+		return xv[0]*xv[4]-xv[1]*xv[3];
+	}
+	inline virtual VecDoub freqs(double R){
+		/* epicyclic frequencies at cylindrical R 	 */
+		/* -- to be overridden by derived classes -- */
+		std::cerr<<"Epicyclic frequency routine not written\n";
+		return {0.,0.,0.};
+	}
+	VecDoub dPhidRdz(const VecDoub& Rz);
+		// returns second derivative of potential wrt R and z
+		// assumes axisymmetry -- takes VecDoub Rz = {R,z}
+		// returns (dP/dRdR, dPdRdz, dPdzdz)
+	double DeltaGuess(const VecDoub& x);
+
+	const double Phi_max(double a = 1e5){
+		// DEBUG_PRINT_V0d(1, a, "Phi_max() called");
+		// return Phi({500., 0., 0.}); //gjy changed: for foci ??
+		return Phi({a,a,a});
+	}
+	inline double E_circ(double R){
+		// std::cout<<Forces({R,0.,0.},2)[0]<<", Phi({R,0.,0.}) = "<<Phi({R,0.,0.},2)<<"////\n"; //gjy add
+		return -Forces({R,0.,0.},2)[0]*.5*R+Phi({R,0.,0.},2); //gjy add: coor
+	}
+	inline double L_circ(double R){
+		// std::cout<<"Potential_JS::L_circ() Forces({R,0.,0.})[0] = "<<Forces({R,0.,0.},2)[0]<<", R = "<<R<<"////\n"; //gjy add
+		return sqrt(R*-Forces({R,0.,0.},2)[0])*R; //gjy add: coor
+	}
+
+	double R_E(double E, double r = -1.);
+	double R_E(double E, double r_scale, double M_scale, double r=-1.); //gjy add
+	double R_E(const VecDoub &x);
+	double R_L(double E,double r = -1.);
+	double R_L(const VecDoub &x);
+	double L_E(double E);
+	double L_E(const VecDoub &x);
+
+	double find_potential_intercept(double Phi0, int direction,double xmin,double xmax);
+	double Lzmax(double E,double RC);
+	VecDoub potential_flattening(double x){
+		return {find_potential_intercept(Phi({x,1e-5,1e-5}),1,x/10.,x*2.)/x, find_potential_intercept(Phi({x,1e-5,1e-5}),2,x/10.,x*2.)/x};
+	}
+
+	VecDoub Phi_secondderive_diag_diff(const VecDoub &x, double dx = 0.1, int coor=0); //gjy add
+	inline virtual VecDoub Phi_secondderive_diag_sum(const VecDoub &x, int coor=0){ //gjy add
+		/* the coor of input and output are same */
+		return pSTAGE->Pxx_t(x,t_temp, coor);
+	}
+
+	VecDoub f_epicycle_axisympot_diff(double R, double Lz1, double dx = 0.1); //gjy add
+	VecDoub f_epicycle_axisympot_sum(double R, double Lz1); //gjy add
+
+    double torb(const VecDoub &x); //gjy changed: ??
+
+	////small such as TRSP3
+	int N_grid_sp3, tag_which_sample;
+	double r_min_sp3, r_scale_sp3, r_max_sp3;
+	VecDoub axis_ratio_sp3;
+	virtual int RebuildPotentialSP3_loadsnapsnot(int ss, const VecDoub& axis_ratio_sp31, double r_scale1, 
+		double r_min1=1e-2, double r_max1=5e2, int N_grid1=9, int tag_which_sample1=0)
+	{
+		DEBUG_PRINT_I(6653);
+		return -1;
+	}
+	// int RebuildPotentialSP3_loadsnapsnot(int ss, const VecDoub& axis_ratio_sp31, double r_scale1, 
+	// 	double r_min1=1e-2, double r_max1=5e2, int N_grid1=9, int tag_which_sample1=0)
+	// {
+	// 	axis_ratio_sp3 = axis_ratio_sp31;
+	// 	r_min_sp3 = r_min1;
+	// 	r_scale_sp3 = r_scale1*2.;
+	// 	r_max_sp3 = r_max1;
+	// 	N_grid_sp3 = N_grid1;
+	// 	tag_which_sample = tag_which_sample1;
+	// 	pSTAGE->SS[ss]->RebuildPotentialSP3(axis_ratio_sp3, r_scale_sp3, r_min_sp3, r_max_sp3, N_grid_sp3, tag_which_sample);
+	// 	return 0;
+	// }
+	// double Phi_TRSP3(const VecDoub& x, int coor=0){
+	// 	return pSTAGE->potential_t(x, t_temp, particle_ID, coor, 5);
+	// }
+	// VecDoub Forces_TRSP3(const VecDoub& x, int coor=0){
+	// 	return pSTAGE->forces_t(x, t_temp, particle_ID, coor, 5);
+	// }
+};
+
+//gjy add
+class TRSP3Potential: virtual public Potential_JS{
+public:
+	TRSP3Potential(Stage* pSTAGE_){
+		pSTAGE = pSTAGE_;
+	}
+	double t_temp2 = -1.;
+	int particle_ID2 = -1;
+	int RebuildPotentialSP3_loadsnapsnot(int ss, const VecDoub& axis_ratio_sp31, double r_scale1, 
+		double r_min1=1e-2, double r_max1=5e2, int N_grid1=9, int tag_which_sample1=0)
+	{
+		axis_ratio_sp3 = axis_ratio_sp31; //no use ??
+		r_min_sp3 = r_min1;
+		r_scale_sp3 = r_scale1;
+		r_max_sp3 = r_max1;
+		N_grid_sp3 = N_grid1;
+		tag_which_sample = tag_which_sample1;
+DEBUG_PRINT_I(6652);
+DEBUG_PRINT_V0d(10, pSTAGE, "pSTAGE");
+DEBUG_PRINT_I(66521);
+		assert(pSTAGE != nullptr); 
+DEBUG_PRINT_I(66522);
+		auto pn = pSTAGE->SS[ss]->NumPart; //??
+DEBUG_PRINT_V0d(10, pn, "pn");
+		pSTAGE->SS[ss]->RebuildPotentialSP3(axis_ratio_sp3, r_scale_sp3, r_min_sp3, r_max_sp3, N_grid_sp3, tag_which_sample);
+DEBUG_PRINT_I(6653);
+		return 0;
+	}
+	double Phi(const VecDoub& x, int coor=0){
+		return pSTAGE->potential_t(x, t_temp2, particle_ID2, coor, 5);
+	}
+	VecDoub Forces(const VecDoub& x, int coor=0){
+		return pSTAGE->forces_t(x, t_temp2, particle_ID2, coor, 5);
+	}
+};
+
+// //gjy add: potential
+// class DiskExpExpPotential: virtual public Potential_JS{
+// 	private:
+// 		double rhod;
+// 		double Rd;
+// 		double zh;
+// 		double epsabs = 1.e-10;
+// 		double epsrel = 1.e-7;
+
+// 	public:
+// 		DiskExpExpPotential(double rhod=2.813e9, double Rd=2.15, double zh=0.4) //default: the MilkyWay stellar disk params of Bovy2013; Units: M_\odot, kpc, km/s.
+// 		: rhod(rhod), Rd(Rd), zh(zh){}
+
+// 		double rho(const VecDoub& x, int coor=0){
+// 			double R,z;
+// 			if(coor == 0){
+// 				R = pow( pow(x[0],2)+pow(x[1],2), 0.5), z = x[2];
+// 			}
+// 			if(coor == 2){
+// 				R = x[0], z = x[2];
+// 			}
+// 			else{
+// 				cerr<<"Use undefined coordinate system, please use 0: Carteisian or 2: Cylindrical.\n";
+// 				return 0.;
+// 			}
+// 			return rhod *exp(-R/Rd -abs(z)/zh);
+// 		}
+
+// 		double fPhi(double k, void*params){
+//     		VecDoub* px = (VecDoub*) params;
+//     		VecDoub x = *px;
+//     		double R = pow(x[0],2)+pow(x[1],2);
+//     		double Z = abs(x[2]);
+//     		double p = std::cyl_bessel_j(0, k*R) *pow(k*k+1./Rd*Rd,-1.5) *(exp(-k*Z)-k*zh*exp(-Z/zh))/(1-pow(k*zh,2)); //std::cyl_bessel_j(0, k*R) *
+//     		// cout<<"k="<<k<<", fPhi="<<p<<endl; //when integratings near 3.2, the results near 2.7013; when up to this, failed to reach tolerance with highest-order rule
+//     		return p;
+// 		}
+
+// 		double Phi(const VecDoub& x, int coor=0){
+
+// 			double R,z;
+// 			if(coor == 0){
+// 				R = pow( pow(x[0],2)+pow(x[1],2), 0.5), z = x[2];
+// 			}
+// 			if(coor == 2){
+// 				R = x[0], z = x[2];
+// 			}
+// 			else{
+// 				cerr<<"Use undefined coordinate system, please use 0: Carteisian or 2: Cylindrical.\n";
+// 				return 0.;
+// 			}
+// 			double C1 = -4*M_PI*conv::G*rhod*zh/Rd;
+//     		double C2 = C1;
+//     		double C3 = Sign_(z)*C1;
+// 			double k_up = 2./zh; //it should be inf, but bad sample; 
+// 			//Bovy2013 uses 10-point Gauss–Legendre integration between each of the zeros of the relevant Bessel function out to k = 2/zh ...
+// 			printf("%f %f; %f %f %f", R, z, C1, C2, C3);
+
+//     		VecDoub xx(3); xx = {R, 0., z};
+//     		gsl_function f;
+//             f.function = distance_l2norm; //fPhi; //DiskExpExpPotential::fPhi;
+// 	    	f.params = &xx;
+//     		double a_down = 0., a_up = k_up;
+//     		double result, error;
+//    			size_t neval; //gjy comment: integration will use Gauss–Kronrod rules with 10/21/43/87 points until the error is within tolerance
+//     		gsl_integration_qng(&f, a_down,a_up, epsabs,epsrel, &result,&error, &neval);
+//    			cout<<"qng_result="<<result<<", error="<<error<<", neval="<<neval<<endl;
+// 			return result;
+// 		}
+
+// 		VecDoub Forces(const VecDoub& x, int coor=0){
+// 			return {0,0,0};
+// 		}
+// };
+
+//gjy add: potential
+//Now we set a simplist model -- a pair of stable circular binary stars 
+//with: r0=1kpc, v0=10km/s, G=43007.1(this Gadget2), then m=4*v0^2*r0/G, and Phi_rel=-Gm/(2*r).
+//This is a semi model that potential is provoid by a central symmetric particle.
+class SimpleBinaryPotential: virtual public Potential_JS{
+	private:
+		double Gm;
+	public:
+		SimpleBinaryPotential(double Gm): Gm(Gm){}
+		double Phi(const VecDoub& x, int coor=0){
+			double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+			return -0.5*Gm/r;
+		}
+		VecDoub Forces(const VecDoub& x, int coor=0){
+			double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+			double Fr = 0.5*Gm/r/r;
+			return {-x[0]/r*Fr,-x[1]/r*Fr,-x[2]/r*Fr};
+		}
+};
+
+
+
+class SphericalPotential: virtual public Potential_JS{
+	private:
+	public:
+		inline virtual double Phi_r(double r){
+			return 0.;
+		}
+		inline virtual double dPhi_r(double r){
+			return 0.;
+		}
+		double Phi(const VecDoub& x, int coor=0){ //gjy add: coordinate
+			double r = x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
+			return Phi_r(sqrt(r));
+		}
+		VecDoub Forces(const VecDoub& x, int coor=0){ //gjy add: coor //gjy comment: this is F_xyzcoor, can also be used in F_rtpcoor(R,0,0)[0]
+			double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+			double dP = dPhi_r(r)/r;
+			return {-x[0]*dP,-x[1]*dP,-x[2]*dP};
+		}
+};
+
+//gjy add
+class SphericalPotential2: virtual public Potential_JS{
+	private:
+	public:
+		inline virtual double Phi_r(double r){
+			return 0.;
+		}
+		inline virtual double dPhi_r(double r){
+			return 0.;
+		}
+		double Phi(const VecDoub& x, int coor=0){ //gjy add: coordinate
+			double r = x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
+			return Phi_r(sqrt(r));
+		}
+		VecDoub Forces(const VecDoub& x, int coor=0){ //gjy add: coor //gjy comment: this is F_xyzcoor, can also be used in F_rtpcoor(R,0,0)[0]
+			double r = sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2]);
+			double dP = dPhi_r(r)/r;
+			return {-x[0]*dP,-x[1]*dP,-x[2]*dP};
+		}
+};
+
+class PlanarAxisymPotential: public SphericalPotential{
+private:
+	Potential_JS *Pot;
+public:
+	PlanarAxisymPotential(Potential_JS *Pot): Pot(Pot){}
+	double Phi_r(double r){ //gjy comment: use this content instead of the parent class Phi_r
+		return Pot->Phi({r,0.,0.}); //
+	}
+	double dPhi_r(double r){
+		return -Pot->Forces({r,0.,0.})[0];
+	}
+};
+
+class IsochronePotential: public SphericalPotential{
+	private:
+		const std::string desc =
+		"Isochrone potential (spherical):\n\tPhi(r) = -frac{GM}{b+sqrt(b^2+r^2}}\n\tTakes two parameters:\n\t\tG*mass: GM and the scale radius: b ";
+		double GM, b;
+	public:
+		IsochronePotential(double GM, double b): GM(GM),b(b){};
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", b = "+std::to_string(b);
+		}
+		double Phi_r(double r){
+			return -GM/(b+sqrt(b*b+r*r));
+		}
+		double dPhi_r(double r){
+			double t = (b+sqrt(b*b+r*r));
+			return GM*r/t/t/sqrt(b*b+r*r);
+		}
+		double JR(const VecDoub& x){
+        	double E=H(x);
+        	if(E>0.)
+        	    return std::numeric_limits<double>::infinity();
+        	double LL=L(x);
+        	return GM/sqrt(-2*E)-0.5*(LL+sqrt(LL*LL+4.*GM*b));
+		}
+		VecDoub Actions(const VecDoub& x){
+			return {JR(x),Lz(x),L(x)-fabs(Lz(x))};
+		}
+		VecDoub Omega(const VecDoub& x){
+			double LL = L(x);
+			double Omegar=pow(-2*H(x),1.5)/GM;
+        	double Omegap=0.5*Omegar*(1.+LL/sqrt(LL*LL+4*GM*b));
+        	return {Omegar,Omegap};
+		}
+		VecDoub Hessian(const VecDoub& x){
+			VecDoub Om = Omega(x);
+			double D_rr,D_rp,D_pp;
+			double LL = L(x);
+       		D_rr=-Om[0]*3.*sqrt(-2*H(x))/GM;
+       		D_rp=D_rr*Om[1]/Om[0];
+       		D_pp=Om[0]*2*GM*b*pow(LL*LL+4*GM*b,-1.5)
+       				+0.5*(1+LL/sqrt(LL*LL+4*GM*b))*D_rp;
+       		return {D_rr,D_rp,D_pp};
+		}
+};
+
+//============================================================================
+/// Axisymmetric Stackel potential with perfect ellipsoidal density
+///
+/// Requires an prolate spheroidal coordinate system instance
+//============================================================================
+class StackelOblate_PerfectEllipsoid: public Potential_JS{
+	private:
+		const std::string desc =
+		"Axisymmetric oblate perfect ellipsoid.\nThis potential is of St\"ackel form and is most simply defined by its density:\n\trho(R,z) = -frac{rho0}{1+m^2}^2\n\tm^2 = (R/a)^2+(z/b)^2\n\tTakes two parameters:\t	the central density: rho0 and the parameter alpha such that ... hmm   ";
+		std::unique_ptr<ProlateSpheroidCoordSys> CS;
+		double Const;
+	public:
+		StackelOblate_PerfectEllipsoid(double Rho0, double alpha)
+		 :CS(new ProlateSpheroidCoordSys(alpha)),
+		  Const(2.*PI*conv::G*Rho0*(-CS->alpha())){}
+		StackelOblate_PerfectEllipsoid(const StackelOblate_PerfectEllipsoid& s):
+			CS(new ProlateSpheroidCoordSys(*s.CS)),Const(s.Const){}
+		inline std::string name(void) const {return desc;}
+		inline double alpha(){return CS->alpha();}
+		inline void newalpha(double alp){CS->newalpha(alp);} //gjy comment: reset alpha from outside
+		inline double gamma(){return CS->gamma();}
+		virtual double G(double tau);
+		virtual double GPrime(double tau);
+		virtual double BigFPrime(double t){std::cerr<<"NOT WRITTEN"<<std::endl; return 0.;}
+		VecDoub Vderivs(const VecDoub& tau);
+		inline VecDoub x2tau(VecDoub x){return CS->x2tau(x);}
+		inline VecDoub xv2tau(VecDoub x){return CS->xv2tau(x);}
+		inline VecDoub tau2x(VecDoub x){return CS->tau2x(x);}
+		double Phi(const VecDoub& x, int coor=1); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+		double Phi_tau(const VecDoub& tau);
+		VecDoub x2ints(const VecDoub& x, VecDoub *tau = NULL);
+};
+
+//============================================================================
+///
+///	Triaxial Stackel potential with perfect ellipsoidal density
+///
+///	Requires a confocal ellipsoidal coordinate system instance
+///
+//============================================================================
+class StackelTriaxial: public Potential_JS{
+	private:
+		std::unique_ptr<ConfocalEllipsoidalCoordSys> CS;
+		double a, b, c, Const;
+		//, l, Flm, Elm, sinm;
+		VecDoub Vderivs(const VecDoub& tau);
+	public:
+		StackelTriaxial(double Rho0, double alpha, double beta)
+			:CS(new ConfocalEllipsoidalCoordSys(alpha,beta)),
+			 a(sqrt(-CS->alpha())),
+			 b(sqrt(-CS->beta())),
+			 c(sqrt(-CS->gamma())),
+			// l = acos(c/a);double sinL = (1-(c/a)*(c/a));
+			// sinm = sqrt((1.-(b/a)*(b/a))/sinL);
+			// Flm = ellint_first(l,sinm);
+			// Elm = ellint_second(l,sinm);
+			 Const(2.*PI*conv::G*Rho0*a*b*c*c){}
+			// std::cout<<(-Const/a/a/sinL/sinm/sinm/3.*((1-sinm*sinm)*Flm+(2.*sinm*sinm-1.)*Elm-b*sinm*sinm/a*sqrt(sinL)*cos(l)))
+			// 	<<" "<<-Const/a/a/sinL/sinm/sinm/(1-sinm*sinm)*(Elm-(1-sinm*sinm)*Flm-c*sinm*sinm*sin(l)/b)
+			// 	<<" "<<-Const*0.5/a/a/3./sinL/(1-sinm*sinm)*(-(1-sinm*sinm)*Flm+(2.*(1-sinm*sinm)-1)*Elm+b*sin(l)*(b*b/c/c-(1-sinm*sinm))/c)<<std::endl;
+		// virtual ~StackelTriaxial(){delete CS;}
+		StackelTriaxial(const StackelTriaxial& s):
+			CS(new ConfocalEllipsoidalCoordSys(*s.CS)),a(s.a),b(s.b),c(s.c),Const(s.Const){}
+		inline double alpha(){return CS->alpha();}
+		inline double beta(){return CS->beta();}
+		inline double gamma(){return CS->gamma();}
+		double G(double tau);
+		double GPrime(double tau);
+		inline VecDoub x2tau(VecDoub x){return CS->x2tau(x);}
+		inline VecDoub xv2tau(VecDoub x){return CS->xv2tau(x);}
+		double Phi(const VecDoub& x);
+		VecDoub Forces(const VecDoub& x);
+		double Phi_tau(const VecDoub& tau);
+		VecDoub tau2ints(const VecDoub& tau);
+};
+
+//============================================================================
+///
+///	Triaxial logarithmic potential
+///
+///	Phi = Vc^2/2 log(x^2+y^2/q1^2+z^2/q2^2)
+///
+//============================================================================
+class Logarithmic: public Potential_JS{
+	private:
+		double Vc2, q1, q2, Phi0;
+		const std::string desc =
+		"Logarithmic potential:Phi ="
+			"(1/2)V_c^2\\log(x^2+(y/qy)^2+(z/qz)^2)"
+		"\n\tTakes three parameters:\n\t\t"
+		"circular velocity: VC, and the axis ratios q_y, q_z";
+	public:
+		Logarithmic(double VC, double P, double Q): Vc2(VC*VC), q1(P*P),q2(Q*Q){Phi0=0.;Phi0=Phi({1e10,1e10,1e10});}
+		inline std::string params(void) const {
+			return "V_c^2 = "+std::to_string(Vc2)+
+				   ", q_y^2 = "+std::to_string(q1)+
+				   ", q_z^2 = "+std::to_string(q2);
+		}
+		double Phi(const VecDoub& x, int coor=0); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=0); //gjy changed
+};
+
+//============================================================================
+///
+///	Triaxial power-law potential
+///
+///	Phi = -G M/(x^2+y^2/q1^2+z^2/q2^2)^{k/2}
+///
+//============================================================================
+class PowerLaw: public Potential_JS{
+	protected:
+		double GM, k, q1, q2;
+		const std::string desc =
+		"Power-law potential:Phi ="
+			"-GM/(x^2+y^2/q_y^2+z^2/q_z^2)^k"
+		"\n\tTakes four parameters:\n\t\t"
+		"G*mass: GM, the power: k and the axis ratios q_y, q_z";
+	public:
+		PowerLaw(double GM, double k, double P=1., double Q=1.): GM(GM), k(k),q1(P*P),q2(Q*Q){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", k = "+std::to_string(k)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		inline void set(VecDoub pars){
+			GM=pars[0];
+			if(pars.size()>1) k=pars[1];
+			if(pars.size()>2){ q1=pars[2];q2=pars[3];}
+		}
+		double Phi(const VecDoub& x);
+		VecDoub Forces(const VecDoub& x);
+		double density_spherical(double r);
+};
+//============================================================================
+///
+///	Triaxial isochrone potential
+///
+///	Phi = -G M/(b+sqrt(b^2+x^2+y^2/q1^2+z^2/q2^2))
+///
+//============================================================================
+class Isochrone: public Potential_JS{
+	protected:
+		double GM, b, q1, q2;
+		const std::string desc =
+		"Isochrone potential:Phi ="
+			"-GM/(b+\\sqrt{b^2+r^2}) where r^2 = (x^2+y^2/q_y^2+z^2/q_z^2)"
+		"\n\tTakes four parameters:\n\t\t"
+		"G*mass: GM, the scale: b and the axis ratios q_y, q_z";
+	public:
+		Isochrone(double GM, double b, double P=1., double Q=1.): GM(GM), b(b),q1(P*P),q2(Q*Q){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", b = "+std::to_string(b)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		inline void set(VecDoub pars){
+			GM=pars[0];
+			if(pars.size()>1) b=pars[1];
+			if(pars.size()>2){ q1=pars[2];q2=pars[3];}
+		}
+		double Phi(const VecDoub& x, int coor=0); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=0); //gjy changed
+		double density_spherical(double r);
+};
+
+//============================================================================
+///
+///	Triaxial harmonic oscillator potential
+///
+///	Phi = .5*Om_i x_i x_i
+///
+//============================================================================
+class HarmonicOscillator: public Potential_JS{
+	protected:
+		VecDoub Om;
+		const std::string desc =
+		"Triaxial harmonic oscillator potential:Phi ="
+			"\\sum_i .5*\\omega_i x_i x_i"
+		"\n\tTakes one parameter: a vector of the frequencies Om";
+	public:
+		HarmonicOscillator(VecDoub Om): Om(Om){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			std::string om = "\\omega_i = (";
+			for(auto i:Om)om+=std::to_string(i)+","; om+=")";
+			return om;
+		}
+		HarmonicOscillator(double Omx,double Omy,double Omz)
+			:Om(VecDoub({Omx,Omy,Omz})){}
+		double Phi(const VecDoub &x);
+		VecDoub Forces(const VecDoub &x);
+};
+
+//============================================================================
+///
+///	Spherical Dehnen potential
+///
+///	rho = rhoS*pow(r,-gamma)*pow(1+pow(r,1./alpha),alpha*(beta-gamma))
+///
+//============================================================================
+class Dehnen: public Potential_JS{
+	private:
+		double rhoS, alpha, beta, gamma, rs;
+	public:
+		Dehnen(double rhoS, double alpha, double beta, double gamma, double rs)
+			: rhoS(rhoS), alpha(alpha),beta(beta), gamma(gamma), rs(rs){}
+		double Phi(const VecDoub& x);
+		VecDoub Forces(const VecDoub& x);
+		double Density(const VecDoub& x);
+		double TotalMass(void);
+};
+
+//============================================================================
+///
+///	Axisymmetric Miyamoto-Nagai potential
+///
+///	Phi = -GM/sqrt(R^2+(A+sqrt(z^2+b^2))^2)
+///
+//============================================================================
+class MiyamotoNagai_JS: public Potential_JS{
+	private:
+		double GM, A, Bq;
+	public:
+		MiyamotoNagai_JS(double gm, double a, double b)
+			: GM(gm), A(a), Bq(b*b){}
+		inline void set_params(double gm, double a, double b){
+			GM=gm; A=a; Bq=b*b;
+		}
+		double Phi(const VecDoub& x);
+		double Vc(double R);
+		VecDoub Forces(const VecDoub& x);
+};
+
+//============================================================================
+///
+///	## Triaxial NFW potential
+///		rs is the scale radius
+///		GM is G times the mass M
+///		qy and qz are the y and z flattenings respectively
+///
+///	 \f[\Phi = \frac{-GM}{\sqrt{x^2+y^2/q_y^2+z^2/q_z^2}}
+///		\log\Big(1+\frac{\sqrt{x^2+y^2/q_y^2+z^2/q_z^2}}{R_s}\Big)\f]
+///
+//============================================================================
+class NFW: public Potential_JS{
+	private:
+		const std::string desc =
+		"NFW potential:Phi ="
+			"-GM/sqrt{x^2+y^2/q_y^2+z^2/q_z^2}"
+			"log(1+sqrt{x^2+y^2/q_y^2+z^2/q_z^2}/R_s)"
+		"\n\tTakes four parameters:\n\t\tG*mass: GM, the scale radius: rs and the axis ratios q_y, q_z";
+		double GM, rs, q1, q2;
+	public:
+		NFW(double gm, double RS, double qy, double qz): GM(gm), rs(RS), q1(qy*qy), q2(qz*qz){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", R_s = "+std::to_string(rs)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		double Phi(const VecDoub& x, int coor=1) override; //gjy change: coor; can be override
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+		double density(const VecDoub& x);
+};
+
+//============================================================================
+///
+///	## Triaxial Burkert potential
+///
+//============================================================================
+class Burkert: public Potential_JS{
+	private:
+		const std::string desc =
+		"Burkert potential:Phi =";
+		// 	"-GM/sqrt{x^2+y^2/q_y^2+z^2/q_z^2}"
+		// 	"log(1+sqrt{x^2+y^2/q_y^2+z^2/q_z^2}/R_s)"
+		// "\n\tTakes four parameters:\n\t\tG*mass: GM, the scale radius: rs and the axis ratios q_y, q_z";
+		double GM, rs, q1, q2;
+	public:
+		Burkert(double gm, double RS, double qy, double qz): GM(gm), rs(RS), q1(qy*qy), q2(qz*qz){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", R_s = "+std::to_string(rs)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		double Phi(const VecDoub& x, int coor=1); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+		double density(const VecDoub& x);
+};
+
+//============================================================================
+///
+///	## Triaxial Plummer potential
+///		rs is the scale radius
+///		GM is G times the mass M
+///		qy and qz are the y and z flattenings respectively
+///
+///	 \f[\Phi = \frac{-GM}{\sqrt{x^2+y^2/q_y^2+z^2/q_z^2+R_s^2}}\f]
+///
+//============================================================================
+class Plummer: public Potential_JS{
+	private:
+		const std::string desc =
+		"Plummer potential:Phi ="
+			"-GM/(sqrt{x^2+y^2/q_y^2+z^2/q_z^2+R_s^2})"
+		"\n\tTakes four parameters:\n\t\tG*mass: GM, the scale radius: rs and the axis ratios q_y, q_z";
+		double GM, rs, q1, q2;
+	public:
+		Plummer(double gm, double RS, double qy, double qz): GM(gm), rs(RS), q1(qy*qy), q2(qz*qz){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", R_s = "+std::to_string(rs)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		double Phi(const VecDoub& x, int coor=1); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+};
+//============================================================================
+///
+///	## Triaxial Hernquist potential
+///		rs is the scale radius
+///		GM is G times the mass M
+///		qy and qz are the y and z flattenings respectively
+///
+///	 \f[\Phi = \frac{-GM}{\sqrt{x^2+y^2/q_y^2+z^2/q_z^2}+R_s}\f]
+///
+//============================================================================
+class Hernquist: public Potential_JS{
+	private:
+		const std::string desc =
+		"Hernquist potential:Phi ="
+			"-GM/(sqrt{x^2+y^2/q_y^2+z^2/q_z^2}+R_s)"
+		"\n\tTakes four parameters:\n\t\tG*mass: GM, the scale radius: rs and the axis ratios q_y, q_z";
+		double GM, rs, q1, q2;
+	public:
+		Hernquist(double gm, double RS, double qy, double qz): GM(gm), rs(RS), q1(qy*qy), q2(qz*qz){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", R_s = "+std::to_string(rs)+
+				   ", q_y^2 = "+std::to_string(q1)+", q_z^2 = "+std::to_string(q2);
+		}
+		double Phi(const VecDoub& x, int coor=1); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+};
+
+//============================================================================
+/// Triaxial Jaffe bulge potential
+//============================================================================
+class Bulge: public Potential_JS{
+	private:
+		const std::string desc =
+		"Bulge potential:Phi ="
+			"GM/b_bulge*log(r/(r+b_bulge))"
+		"\n\tTakes four parameters:\n\t\tG*mass: GM, the scale radius: b_bulge and the axis ratios q_y, q_z";
+		double b_bulge, GM, q1, q2;
+	public:
+		Bulge(double b_bulge, double gm, double qy, double qz): b_bulge(b_bulge), GM(gm), q1(qy*qy), q2(qz*qz){}
+		double Phi(const VecDoub& x);
+		VecDoub Forces(const VecDoub& x);
+};
+
+#ifdef TORUS
+//============================================================================
+/// Wrapper for potentials produced by the GalPot code
+//============================================================================
+class GalPot: virtual public Potential_JS{
+	private:
+		GalaxyPotential *PhiWD;
+	public:
+		GalPot(std::string TpotFile);
+		inline std::string name(void) const{
+			return "Galaxy Potential";
+		}
+		inline std::string params(void) const {
+			std::ostringstream stream;
+			PhiWD->DescribePot(stream);
+			return stream.str()+" and mass at 100 kpc "
+					+std::to_string(PhiWD->Mass(100.));
+		}
+		double Phi(const VecDoub& x, int coor=1); //gjy changed
+		VecDoub Forces(const VecDoub& x, int coor=1); //gjy changed
+		double Vc(double R);
+		VecDoub freqs(double R);
+		GalaxyPotential *PWD(){return PhiWD;}
+};
+#endif
+//============================================================================
+
+//============================================================================
+/// Multicomponent potential
+// //============================================================================
+template<class P>
+class MultiComponentPotential: public Potential_JS{
+	private:
+		std::vector<P*> multicomponents;
+	public:
+		MultiComponentPotential(std::vector<P*> multicomponents):multicomponents(multicomponents){};
+		virtual ~MultiComponentPotential(void){};
+		inline int ncompts(){return multicomponents.size();}
+		double Phi(const VecDoub& x){
+			double p = 0.;
+			for(auto i: multicomponents)
+				p+=i->Phi(x);
+			return p;
+		}
+		VecDoub Forces(const VecDoub& x){
+			VecDoub p(3,0);
+			for(auto i: multicomponents) p=p+i->Forces(x);
+			return p;
+		}
+};
+
+template<class P>
+class MultiComponentSphericalPotential: public SphericalPotential{
+	private:
+		std::vector<P*> multicomponents;
+	public:
+		MultiComponentSphericalPotential(std::vector<P*> multicomponents):multicomponents(multicomponents){};
+		virtual ~MultiComponentSphericalPotential(void){};
+		inline int ncompts(){return multicomponents.size();}
+		double Phi_r(double r){
+			double p = 0.;
+			for(auto i: multicomponents)
+				p+=i->Phi_r(r);
+			return p;
+		}
+		double dPhi_r(double r){
+			double p=0.;
+			for(auto i: multicomponents)
+				p+=i->dPhi_r(r);
+			return p;
+		}
+};
+
+
+class NFWSpherical: public SphericalPotential{
+	private:
+		const std::string desc =
+		"Spherical NFW potential:Phi ="
+			"-GM/r log(1+r/r_s)"
+		"\n\tTakes two parameters:\n\t\tG*mass: GM and the scale radius: r_s";
+
+		double GM, rs;
+	public:
+		NFWSpherical(double GM, double rs): GM(GM),rs(rs){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", r_s = "+std::to_string(rs);
+		}
+		inline void set_params(double GM1, double rs1){
+			GM=GM1;rs=rs1;
+		}
+		inline double Phi_r(double r) {return -GM*log(1.+r/rs)/r;}
+		inline double dPhi_r(double r){return GM*(log(1.+r/rs)/r-1./rs/(1.+r/rs))/r;}
+};
+
+
+class HernquistSpherical: public SphericalPotential{
+	private:
+		const std::string desc =
+		"Spherical Hernquist potential:Phi ="
+			"-GM/(r_s+r)"
+		"\n\tTakes two parameters:\n\t\tG*mass: GM and the scale radius: r_s";
+		double GM, rs;
+	public:
+		HernquistSpherical(double GM, double rs): GM(GM),rs(rs){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", r_s = "+std::to_string(rs);
+		}
+		inline double Phi_r(double r) {return -GM/(rs+r);}
+		inline double dPhi_r(double r){return GM/(rs+r)/(rs+r);}
+};
+
+class PlummerSpherical: public SphericalPotential{
+	private:
+		const std::string desc =
+		"Spherical Plummer potential:Phi ="
+			"-GM/sqrt(r_s^2+r^2)"
+		"\n\tTakes two parameters:\n\t\tG*mass: GM and the scale radius: r_s";
+		double GM, rs, rs2;
+	public:
+		PlummerSpherical(double GM, double rs): GM(GM),rs(rs){rs2=rs*rs;}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", r_s = "+std::to_string(rs);
+		}
+		inline double Phi_r(double r) {return -GM/sqrt(rs2+r*r);}
+		inline double dPhi_r(double r){return GM*r/(rs2+r*r)/sqrt(rs2+r*r);}
+};
+
+class PowerLawSpherical: public SphericalPotential{
+	private:
+		double GM, k;
+		const std::string desc =
+		"Power-law spherical potential:Phi ="
+			"-GM/r^k"
+		"\n\tTakes two parameters:\n\t\t"
+		"G*mass: GM, the power: k";
+	public:
+		PowerLawSpherical(double GM, double k): GM(GM),k(k){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", k = "+std::to_string(k);
+		}
+		inline double Phi_r(double r) {return -GM*pow(r,-k);}
+		inline double dPhi_r(double r){return k*GM*pow(r,-k-1);}
+};
+
+class PowerLawSphericalScale: public SphericalPotential{
+	private:
+		double v02, alpha_h, rs;
+		const std::string desc =
+		"Power-law spherical potential with scale:Phi ="
+			"-v0**2/(1+(r/rs)^2)^{alpha/2}"
+		"\n\tTakes three parameters:\n\t\t"
+		"the amplitude v0, the power: alpha and the scale rs";
+	public:
+		PowerLawSphericalScale(double v0, double alpha, double rs):
+			v02(v0*v0),alpha_h(alpha*.5),rs(rs){}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "v0 = "+std::to_string(sqrt(v02))+", alpha = "+std::to_string(alpha_h*2.)+
+			       ", scale radius = "+std::to_string(rs);
+		}
+		inline double Phi_r(double r) {
+			r/=rs;
+			return -.5*v02/alpha_h*pow(r,-2.*alpha_h)*hyp_2f1(alpha_h,alpha_h,
+			                                  			 1+alpha_h,
+			                                            -1./(r*r));}
+		inline double dPhi_r(double r){
+			return v02/r*pow(1.+r*r/rs/rs,-alpha_h);}
+};
+
+class PowerLawSphericalExpCut: public SphericalPotential{
+	private:
+		double GM, k, rc;
+		double rc3k, sgk2, sg15k2,mk2,m5k2,amp;
+		const std::string desc =
+		"Power-law spherical potential:Phi ="
+			"-GM/r^k exp(-(r/rc)^2)"
+		"\n\tTakes three parameters:\n\t\t"
+		"G*mass: GM, the power: k, the cutoff radius: rc";
+	public:
+		PowerLawSphericalExpCut(double GM, double k, double rc): GM(GM),k(k),rc(rc){
+			rc3k = pow(rc,3.-k);
+			mk2 = 1.-k/2.;
+			m5k2 = 1.5-k/2.;
+			sgk2 = gamma_fn(mk2);
+			sg15k2 = gamma_fn(m5k2);
+			amp= TPI*GM*rc3k;
+		}
+		inline std::string name(void) const {return desc;}
+		inline std::string params(void) const {
+			return "GM = "+std::to_string(GM)+", k = "+std::to_string(k)+", rc = "+std::to_string(rc);
+		}
+		inline void set_params(double GM1, double k1, double rc1){
+			GM=GM1;rc=rc1;k=k1;
+			rc3k = pow(rc,3-k);			mk2 = 1.-k/2.;
+			m5k2 = 1.5-k/2.;			sgk2 = gamma_fn(mk2);
+			sg15k2 = gamma_fn(m5k2);
+			amp= TPI*GM*rc3k;
+		}
+		double Phi_r(double r);
+		double dPhi_r(double r);
+};
+
+class BowdenNFW: public Potential_JS{
+private:
+	double rho0, rs, q0, qinf, p0, pinf;
+	double rho1, rho2, r1,r2;
+	const std::string desc =
+	"Triaxial NFW from Bowden, Evans & Belokurov (2014)\n"
+	"\tTakes 6 parameters: the usual central density (rho0) and scale (rs),"
+	"and the z and y flattenings at zero(q0,p0) and inf(qinf,pinf)";
+public:
+	BowdenNFW(double rho00,double rs,double q0=1.,double qinf=1.,double p0=1.,double pinf=1.):rho0(rho00),rs(rs),q0(q0),qinf(qinf),p0(p0),pinf(pinf){
+		double pinf3=pinf*pinf*pinf, qinf3=qinf*qinf*qinf;
+		double pinf32qinf3=1+pinf3-2.*qinf3;
+		double pinf3qinf3=1+pinf3+qinf3;
+		rho0*=rs*rs*rs;
+		r1 = rs*sqrt(2./3.*(1+p0+q0)*pinf32qinf3/(1+p0-2*q0)/pinf3qinf3);
+		r2 = rs*sqrt(2./3.*(1+p0+q0)*(1+pinf3)/(1-p0)/pinf3qinf3);
+		rho1 = rho0/12.*pinf32qinf3/pinf3qinf3;
+		rho2 = rho0/4.*(1-pinf3)/pinf3qinf3;
+	}
+	inline std::string name(void) const {return desc;}
+	inline std::string params(void) const {
+		return "rho0 = "+std::to_string(rho0/pow(rs,3))+", rs = "+std::to_string(rs)+
+		", q0 = "+std::to_string(q0)+", qinf = "+std::to_string(qinf)+
+		", p0 = "+std::to_string(rho0)+", pinf = "+std::to_string(pinf);
+	}
+	double Phi(const VecDoub& x);
+	VecDoub Forces(const VecDoub& x);
+};
+
+
+//============================================================================
+
+class AndreasPotential: public Potential_JS{
+private:
+	Bulge *bulge;
+	MiyamotoNagai_JS *disc;
+	NFW *halo;
+	MultiComponentPotential<Potential_JS> *MC;
+	const double Grav = 4.300918e-6;
+public:
+	AndreasPotential(NFW *H, Bulge *B = 0, MiyamotoNagai_JS *D = 0){
+		std::cerr<<"NEED TO SET THE UNITS TO KPC_KMS_MSUN\n";
+		if(B) bulge = B;
+		else bulge = new Bulge(0.7,3.4e10*Grav,1.,1.);
+		if(D) disc = D;
+		else disc = new MiyamotoNagai_JS(1e11*Grav,6.5,0.26);
+		if(H) halo = H;
+		else halo = new NFW(Grav*1.81194e12,32.26,1.,0.8140);
+		MC = new MultiComponentPotential<Potential_JS>({bulge,disc,halo});
+	}
+	double Phi(const VecDoub &x){return MC->Phi(x);}
+	VecDoub Forces(const VecDoub &x){ return MC->Forces(x);}
+	VecDoub NFWForces(const VecDoub &x){ return halo->Forces(x);}
+	VecDoub DiscForces(const VecDoub &x){ return disc->Forces(x);}
+	VecDoub BulgeForces(const VecDoub &x){ return bulge->Forces(x);}
+};
+
+
+class MWPotential2014: public Potential_JS{
+private:
+	PowerLawSphericalExpCut *bulge;
+	MiyamotoNagai_JS *disc;
+	NFWSpherical *halo;
+	MultiComponentPotential<Potential_JS> *MC;
+public:
+	MWPotential2014(void){
+		double GMb=1.,kb=1.8,rcb=1.9;
+		double GMd=1.,ad=3.,bd=0.28;
+		double GMh=1.,ah=16.;
+		bulge = new PowerLawSphericalExpCut(GMb,kb,rcb);
+		disc = new MiyamotoNagai_JS(GMd,ad,bd);
+		halo = new NFWSpherical(GMh,ah);
+
+		double Fb = -bulge->Forces({8.,0.,0.})[0];
+		double Fd = -disc->Forces({8.,0.,0.})[0];
+		double Fh = -halo->Forces({8.,0.,0.})[0];
+
+		double Ftottarget = 220.*220./8.;
+		double fb = 0.05;
+		GMb = fb*Ftottarget/Fb;
+		double fd = 0.6;
+		GMd = fd*Ftottarget/Fd;
+		double fh = 0.35;
+		GMh = fh*Ftottarget/Fh;
+
+		bulge->set_params(GMb,kb,rcb);
+		disc->set_params(GMd,ad,bd);
+		halo->set_params(GMh,ah);
+
+		MC = new MultiComponentPotential<Potential_JS>({bulge,disc,halo});
+
+		std::cout<<sqrt(8.*-Forces({8.,0.,0.})[0])<<" "
+		<<BulgeForces({8.,0.,0.})[0]<<" "
+		<<DiscForces({8.,0.,0.})[0]<<" "
+		<<NFWForces({8.,0.,0.})[0]<<std::endl;
+
+	}
+	double Phi(const VecDoub &x){return MC->Phi(x);}
+	VecDoub Forces(const VecDoub &x){ return MC->Forces(x);}
+	VecDoub NFWForces(const VecDoub &x){ return halo->Forces(x);}
+	VecDoub DiscForces(const VecDoub &x){ return disc->Forces(x);}
+	VecDoub BulgeForces(const VecDoub &x){ return bulge->Forces(x);}
+};
+#ifdef TORUS
+template<class c>
+void vec2torus(VecDoub a, c &C){
+	C[0]=a[0];C[2]=a[1];C[1]=a[2];
+}
+
+VecDoub torusPSPT2cartvec(PSPT FF);
+
+class WrapperTorusPotential: public Potential{
+	private:
+	Potential_JS *Pot;
+	public:
+	WrapperTorusPotential(Potential_JS *pot):Pot(pot){}
+	double operator()(const double R, const double z) const;
+	double operator()(const double R, const double z, double& dPdR, double& dPdz) const;
+    Frequencies KapNuOm(            // returns kappa,nu,Om
+                const double R) const;  // given R at z=0
+    double RfromLc(const double L_in, double* dR=0) const;
+    double LfromRc(const double R, double* dR=0) const;
+};
+
+#endif
+
+#ifdef GALPY
+#include <galpy_potentials.h>
+
+/*! Galpy wrapper -- adapted from Bovy */
+class galpyPotential_JS : public Potential_JS {
+	int nargs;
+	struct potentialArg * potentialArgs;
+	void  error(const char*) const;
+	public:
+		galpyPotential(int,struct potentialArg *);
+		double Phi(const VecDoub& x);
+		VecDoub Forces(const VecDoub& x);
+};
+
+inline galpyPotential::galpyPotential(int na,
+				      struct potentialArg * inPotentialArgs) :
+		      nargs(na), potentialArgs(inPotentialArgs)
+{
+parse_actionAngleArgs(nargs,potentialArgs,pot_type,pot_args,false);
+}
+#endif
+// potential.h
+#endif

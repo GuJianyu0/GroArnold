@@ -1,0 +1,155 @@
+###################
+# Global parameters
+###################
+# Virial velocity of the galaxy [km/s]
+v200 				    200.0
+# Virial mass of the galaxy [1e10 Msol]
+# Overrides the v200 parameter
+m200				    137. #overwrite the above param if not 0
+# Halo spin parameter
+lambda					6.000000e-01 #changed
+# Refinement level of the potential grid 
+level_coarse		    7
+# Refinement level of the plane plane density grid 
+level_grid_mid_dens		7
+# Refinement level of the turbulence grid 
+level_grid_turb		    7
+# Refinement level of the gaussian field grid
+level_grid_dens_fluct 	7
+# Size of the potential grid [kpc]
+boxsize1			    100.0
+boxsize2	 	        14.0
+boxsize3	 	        5.0
+# the fellow three fuck are not default, which may make r_cut \neq r200
+# Dispersion for the Gaussian field fluctuations
+# dens_fluct_sigma        0.5 #defaulf 0.0
+# Physical injection scale of the random field fluctuations [kpc]
+#dens_fluct_scale_inj   2.00
+# Physical dissipation scale of the random field fluctuations [kpc]
+#dens_fluct_scale_diss  0.25
+dens_fluct_seed		    30958 #1453 #1212
+# Seed for the random number generator
+seed			        390863492 #as seed2 #634089 as seed1 #1368 #1246
+# Switch to MCMC ntry algorithm to position particles for a value > 1
+mcmc_ntry		        1
+# Number of iterations to reach hydrostatic equilibrium (zero to deactivate)
+hydro_eq_niter			3
+
+
+
+#######################
+# Components parameters
+#######################
+
+#######################
+# Component 1: Halo
+#######################
+# Fraction of the virial mass in the component 1
+mass_frac1		        1. #0.9569 #131.1/137.
+# Number of particles for the component 1
+npart1			        10000 #10000
+# Number of particles for the potential computation
+npart_pot1              20000 #2000000
+# Target mass of individual particles [Msol]
+# part_mass1			    2e8 #original 2e6 #M: the 200.e10/2e6 times
+# Target mass of individual particles for potential computation [Msol]
+part_mass_pot1			#1e8 #original 1e6
+# Component 1 density model
+# Available models:
+# 1  = Exponential disk + sech-z profile
+# 2  = Myamoto-Nagai profile
+# 3  = Exponential disk + exponential-z profile
+# 4  = Hernquist profile
+# 5  = Plummer profile
+# 6  = Jaffe profile
+# 7  = Isothermal profile
+# 8  = NFW profile 
+# 9  = Burkert
+# 10 = Einasto profile
+# 11 = Mestel profile
+# 12 = Kalnajs profile
+# 13 = Sersic profile
+# 14 = Toomre-Kuzmin profile
+# 15 = Uniform profile
+# 16 = Pseudo-isothermal profile
+# 17 = Power-law profile
+# 21 = Einasto_usual #gjy add
+# others...
+
+
+
+# ## profile models, these should be in different .params file and rename!!!
+# ## profile1: for EinastoUsual with powerlaw model
+# ## the model
+# model1			        21 #13 #10 #8
+# ## profile1: power in denominator for Einasto model
+# alpha_struct1           1.7
+# ## profile1: exp coefficient for Seric or EinastoUsual #double ar = 1./alpha; double dar = 3.*alpha-1./3+0.0079/alpha;
+# beta_struct1            4.77132 #1.445
+
+## profile3:  for Hernquist model
+## profile3: the model
+model1                  4
+
+# ## profile2: for NFW and other model
+# ## profile2: the model
+# model1                  8 #9 #6
+
+
+
+#Scale length of the density profile [kpc]
+scale_length1		    19.6 #1.
+
+# Core radius in the density profile [kpc]
+rcore1				    0. #default 0., others are bad shape
+# Concentration parameter #another settings made changing!!!
+# if positive, the scale length is recomputed to match the concentration
+# the concentration parameter of an NFW halo with a mass M200*mass_frac [overrides scale_length if defined positive]
+# concentration1		13.0
+# Gravitational softening for the poisson solver [kpc]
+softening1              0.05 #5.0
+
+# Component 1 radial density cut [kpc] 
+cut1			        0. #default = r200 
+# Component 1 thickness parameters #flattening
+flatx1			        1.0
+flaty1			        0.6
+flatz1			        0.3
+# Gaussian step for the MCMC Metropolis-Hasting particle postionning algorithm,
+# expressed in units of the component scale length. Default value is 0.5.
+mcmc_step1		        0.50
+# Maximum velocity for the component 1 particles in expressed in units of escape velocity
+vmax_esc1		        3 #5.
+# Particles type (GADGET format -- 0=Gas,1=Halo,2=Disk,3=Bulge,4=Stars)
+type1			        1
+# Radius at which the density profile should have the exact same
+# value as the NFW profile with the previously defined concentration
+# and with a mass M200*mass_frac [kpc] #this fuck changed the total mass when other model
+# radius_nfw1		    1.0 #original nfw setting
+# Cut the density function in the Jeans equation integration
+jeans_mass_cut1		    1
+# Compute component velocity (debug option)
+compute_vel1		    1
+# Number of integral of motion for the Jeans equations
+# 0 = Do not use Jeans equation for sigma_r and sigma_z (model specidifed by sigmar_model and sigmaz_model)
+# 1 = Spherically symmetric Jeans equation
+# 2 = Jeans equations with 2 integrals of motion
+# 3 = Jeans equations with 3 integrals of motion (solved on a 2D grid in the r-z plane)
+jeans_dim1			    1
+# Method for streaming velocity computation
+# 0 =               - User defined fixed fraction of the circular velocity profile (stream_fraction keyword)
+# 1 = Bullock 2001  - Streaming velocity profile following the cumulative mass profile
+# 2 = Springel 1999 - Streaming velocity profile following is a fixed fraction of the rotation curve 
+# 3 =               - Solid Body rotation
+stream_method1			1
+# Streaming fraction of the component 1 (only for steam_method=4)
+stream_fraction1	    0.00
+# Alpha coefficient for the generalized normal distribution [Gaussian=2.0]
+# for the random generation of velocities
+ggd_beta1               2.0
+# Minimum acceptance for the MCMC chain
+accept_min1			    0.80
+# Maximum acceptance for the MCMC chain
+accept_max1			    0.95
+
+## one can add other components below ...

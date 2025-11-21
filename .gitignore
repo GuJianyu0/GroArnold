@@ -1,0 +1,9 @@
+# build & temp
+build/ cmake-build*/ dist/ out/ logs/ nohup.out
+*.o *.a *.so *.dylib *.dll *.mod
+__pycache__/ *.pyc
+# vendor dumps & archives
+packages/ .vscode/
+*.zip *.tar *.tar.gz *.tgz *.7z
+# OS/editor
+.DS_Store

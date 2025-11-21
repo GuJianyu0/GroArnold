@@ -1,0 +1,22 @@
+C**********Basic input parameters**********
+37563            iseed
+0.0              bhmass 
+0.000001               epsbh  
+0.0             tstartbh
+10.00           tgrowbh
+30.00            tlivebh  
+10.0             tdiebh   
+0.0              xdrag
+0.000            ydrag
+0.045            zdrag
+0.00             tstartdrag    
+10.0             tgrowdrag
+30.0             tlivedrag
+10.0             tdiedrag
+.TRUE.          bhgrav
+.FALSE.          usedrag
+.FALSE.          stellev
+C******************************************
+C   0.0001              bhmass 
+
+
