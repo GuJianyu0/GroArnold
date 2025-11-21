@@ -613,7 +613,7 @@ def step_triaxial_alignment(paths: Paths, snapshot_ids: List[int], *,
             run_cmd(["bash", "step1_2_compile_SCF.bat"], cwd=paths.folder_AA, log=logdir/f"compile_scf_{sid}.log")
 
             if is_run_foci == 1:
-                print("Running foci ...")
+                print("Running for foci table ...")
                 run_cmd(["bash", "step1_3_prepare_foci.bat"], cwd=paths.folder_AA, log=logdir/f"prepare_foci_{sid}.log")
                 src = paths.folder_actions/"step2_Nbody_TACT/DataInterface/SCF/orbitIntegSCF_adjust_a2b2/src/some_lmn_foci_Pot.txt"
                 dst = gm/"intermediate"/f"snapshot_{i}_lmn_foci_Pot.old.txt"
@@ -698,6 +698,7 @@ def step_fit_and_plot(paths: Paths, snapshot_ids_fit: List[int], is_run_actioner
 def step_compare(paths: Paths, snapshot_ID_each_compared: int, is_run_actionerror: int, model0: str, logdir: Path):
     hist = paths.folder_thisFile / (f"history_runnings_{model0}/")
     ensure_dir(hist)
+    Path(paths.folder_simu_setting/"params_statistics").mkdir(parents=True, exist_ok=True)
     for fn in ("user_settings_multi.txt", "run.param", "IC_setting_list.txt", "IC_DICE_manucraft.params"):
         src = paths.folder_thisFile / fn
         if src.exists():
