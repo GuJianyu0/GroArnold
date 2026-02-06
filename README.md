@@ -50,6 +50,7 @@ More details are in below sections of this file if you need.
 # Usage:
 
 ## (1) Installation
+
 Environment: Ubuntu 20.04 system or higher.
 
 Dependencies: `gcc`, `g++`, `gfortran`, `cmake`, `gsl`, `fftw3`, `eigen3`, `lapack`, `hdf5`, `mpich`, `python3`
@@ -59,6 +60,7 @@ Please download, compile and install packages in the instructions of "GroArnold_
 Note that the GroArnold framework depends on too much niche packages, so the installation and subsequent development may be inconvenient.
 
 ## (2) Settings
+
 File "GroArnold_framework/install_and_run/initial_conditions/settings_{your_galaxy_model}/unified_settings.yaml" is the Unified settings for some manners of the entire GroArnold program; 
 
 Other files in the same folder: "IC_DICE_manucraft.params" for DICE prog about galaxy initial condition (you may need to reset a lot for another galaxy), these files has some important parameters of initial condition, e.g. mass fraction, scale length, particle count of each component, while some parameters would not strict after generating and simulation; 
@@ -66,7 +68,9 @@ Other files in the same folder: "IC_DICE_manucraft.params" for DICE prog about g
 "run.param" for gadget about Nbody simulation (you may not reset too much).
 
 ## (3) Running
+
 ### running all
+
 #Suppose your_galaxy_model is Ein_multicomp_spinL_axisLH and your YAML settings, IDCE settings and Gadget2 settings file lives in:
 
 GroArnold_framework/initial_conditions/settings_Ein_multicomp_spinL_axisLH/
@@ -82,6 +86,7 @@ nohup python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_sp
 ```
 
 ### resume
+
 #To resume at a specific point; enable --resume_point would not backup galaxy_general/ or galaxy_general_XXX/ folders.
 
 #resume_point 1. initial condition and simulation only (module 1; stops after simulate)
@@ -107,6 +112,7 @@ python3 workflow_wrapper.py ./initial_conditions/settings_Ein_multicomp_spinL_ax
 ```
 
 ### Checking running
+
 #Check whether running (optional).
 
 ```bash
@@ -116,10 +122,11 @@ ps -aux|egrep 'dice|mpirun|Gadget2|out.exe|data.exe|fit_galaxy_distribution_func
 
 #kill the controller if detached
 
-kill [the id about workflow_wrapper.py list]
+kill -9 [the about workflow_wrapper.py list]
 ```
 
 ## (4) Result
+
 suppose your_galaxy_model is Ein_multicomp_spinL_axisLH. The result data is at GroArnold_framework/GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/Ein_multicomp_spinL_axisLH/fit/.
 
 
@@ -152,6 +159,7 @@ Compute DF by kernel density estiamtion from particle data and fit by mpfit (htt
 It is recommanded to learn about the dependencies e.g. DICE, gadget, TACT for more details.
 
 ## How to cite
+
 References you may cite if using GroArnold.
 
 #@ARTICLE{} Gu et al. ()
@@ -247,6 +255,7 @@ archivePrefix = {arXiv},
 # Structures
 
 ## Files dictionary
+
 GroArnold_framework/install_and_run/: the path about installation and running.
 
 GroArnold_framework/GDDFAA/: GDDFAA/ (Galaxy Gynamics Distribution Function based on Angle-Actions) is the path contains most source code files and running result data.
@@ -262,6 +271,7 @@ GroArnold_framework/GDDFAA/step3_actions/: triaxility alignment and actions comp
 GroArnold_framework/GDDFAA/step1_galaxy_IC_preprocess/: fit and plot, about module 4.
 
 ## Path to result data
+
 GroArnold_framework/GDDFAA/step2_Nbody_simulation/gadget/Gadget-2.0.7/galaxy_general_{modelname}/: galaxy result data; 
 
 where txt/snapshot_%03d.txt%(snapshot_ID) are files about snapshot data like position-velocity before triaxility alignment, 
@@ -271,6 +281,7 @@ aa/snapshot_%03d.action.method_all%(snapshot_ID) are files about snapshot data l
 and the fit/ contains figures.
 
 ## Some important code files
+
 GroArnold_framework/install_and_run/workflow_wrapper.py: the workflow controller.
 
 GroArnold_framework/GDDFAA/step1_galaxy_IC_preprocess/step2_select_generate_IC_DICE/src/dice_structure.c: the DICE source file contains profile models of galaxy for user setting before running DICE; we have modified the code for more profile models than original code.
