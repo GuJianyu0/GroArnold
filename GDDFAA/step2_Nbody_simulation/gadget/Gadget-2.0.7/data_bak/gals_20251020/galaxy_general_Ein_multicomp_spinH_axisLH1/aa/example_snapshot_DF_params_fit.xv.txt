@@ -1,0 +1,16 @@
+0 # model_ID
+1.056215e+00 # coef_free_p1
+6.546124e-01 # coef_free_p2
+1.595128e-01 # power_free_1
+2.013937e+00 # power_free_2
+5.320677e+00 # length_scale
+6.549420e-03 # density_scale
+-5.781819e-01 # scale: median of x or actions, coor1
+1.724712e+00 # scale: median of x or actions, coor2
+3.881784e-01 # scale: median of x or actions, coor3
+9.604416e+00 # scale: median of x or actions, l2_norm
+-4.070431e+00 # scale: median of v or frequencies, coor1
+4.036392e+00 # scale: median of v or frequencies, coor2
+1.064890e+00 # scale: median of v or frequencies, coor3
+4.270017e+02 # scale: median of v or frequencies, l2_norm
+##other info: ...
