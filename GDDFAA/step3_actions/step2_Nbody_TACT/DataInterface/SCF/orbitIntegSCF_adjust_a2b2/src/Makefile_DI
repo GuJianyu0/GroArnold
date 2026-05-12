@@ -1,0 +1,118 @@
+##-----------------------------------------------
+## fortran SCF function and C calling
+#:: the first target instead of target with name of "default" is the default make target
+default: clean coef_code so exe1 exe2
+default1: clean coef_code so exe1
+default2: clean coef_code so exe2
+
+#:: clean before remake to update .o
+#:: cd a/b; cd a//b; cd a///b; all are OK 
+clean:
+	rm -rf *.o *.so *.exe
+	rm -rf $(SCFPATH)/*.o $(SCFPATH)/*.so $(SCFPATH)/*.exe
+	echo ""
+
+
+
+##-----------------------------------------------
+## compiler and options
+CCOMPILER0 = gcc
+CCOMPILER = g++ #mpi++
+CFLAG = -std=c++17 -Wall -O2 -fopenmp -fPIC
+LIBFLAG = -shared #enable this options if make shared objects; donot enable this if make executablefile
+LIBNAME = # -soname
+STATIC = -static-libstdc++
+
+FORTRANCOMPILER = gfortran #mpi++
+FORTRANFLAG = -Wall -O3 -fopenmp -fPIC
+
+
+
+##----------------------------------------------
+## pathes of source codes, compiled objects and libraries
+SCFPATH = SCF/SCF_coeff_pot/
+SCFSRC = $(SCFPATH)
+SCFOBJ = $(SCFPATH)
+COEF_DIR = $(SCFPATH)
+GENERALPATH = ../general/
+GENERAL_INC = ../general/coordtransforms/inc/
+GENERAL_SRC = ../general/coordtransforms/src/
+GENERAL_OBJ = ../general/coordtransforms/obj/
+GENERAL_LIBCOORDS_PATH = ../general/coordtransforms/
+
+# SCFOBJECTS = $(SCFOBJ)SCF-code.o $(SCFOBJ)force_SCF.o inc.o
+SCFOBJECTS = $(SCFOBJ)SCF-code.o $(SCFOBJ)force_SCF.o $(SCFOBJ)inc.o
+GENERALOBJECTS = $(GENERAL_OBJ)coordsys.o $(GENERAL_OBJ)coordtransforms.o
+# $(GENERAL_OBJ)utils.o
+
+
+#:: should add inc.cpp ??
+DIOBJECTS = Gadget2FormatData_io.o DataInterface.o
+EXEOBJECTS = out.o preProcess.o
+#out.cpp is main
+
+INC = -I./ -I./$(SCFPATH) -I$(GENERALPATH) -I$(GENERAL_INC)
+
+LIBCOORDS = -L$(GENERAL_LIBCOORDS_PATH) -lcoords
+LIBSO = -L./ -lDataInterface
+ADDLIBPATH = -Wl,--rpath=./ #,$(LIBNAME)
+LIBOTHER = -lgsl -lgslcblas -lm -lgfortran -lpthread
+
+
+
+##-----------------------------------------------
+## compile .o
+$(SCFOBJ)%.o: $(SCFSRC)%.f
+	$(FORTRANCOMPILER) $(FORTRANFLAG) -c $< -o $@ $(INC)
+
+$(SCFOBJ)inc.o: $(SCFOBJ)inc.c
+	$(CCOMPILER0) $(CFLAG) -c $< -o $@ $(INC)
+# $(SCFOBJ)%.o: $(SCFSRC)%.c
+# 	$(CCOMPILER0) $(CFLAG) -c $< -o $@ $(INC)
+# $(SCFOBJ)%.o: $(SCFSRC)%.cpp
+# 	$(CCOMPILER) $(CFLAG) -c $< -o $@ $(INC)
+
+# %.o: %.c
+# 	$(CCOMPILER0) $(CFLAG) -c $< -o $@ $(INC)
+%.o: %.cpp
+	$(CCOMPILER) $(CFLAG) -c $< -o $@ $(INC)
+
+
+
+##-----------------------------------------------
+## compile .so or .exe
+#:: -I./ not need
+#:: add $(ADDLIBPATH) to know where are the functions of .so for .exe running; not need when compiling .so
+
+#:: SCF coef exe
+coef_code:
+	$(MAKE) -C $(COEF_DIR)
+
+so: $(SCFOBJECTS) $(DIOBJECTS)
+	$(CCOMPILER) $(CFLAG) $(LIBFLAG) $(SCFOBJECTS) $(DIOBJECTS) -o libDataInterface.so $(INC) $(ADDLIBPATH) $(LIBCOORDS) $(LIBOTHER)
+# $(SCFOBJECTS) $(DIOBJECTS) $(EXEOBJECTS)
+# $(CCOMPILER) $(CFLAG) $(LIBFLAG) $(SCFOBJECTS) $(DIOBJECTS) $(EXEOBJECTS) -o libDataInterface.so $(INC) $(ADDLIBPATH) $(LIBCOORDS) $(LIBOTHER)
+# $(CCOMPILER) $(CFLAG) $(LIBFLAG) $(SCFOBJECTS) $(DIOBJECTS) $(EXEOBJECTS) $(GENERALOBJECTS) -o libDataInterface.so $(INC) $(ADDLIBPATH) $(LIBSO) $(LIBOTHER)
+# $(CCOMPILER) $(CFLAG) $(LIBFLAG) $(SCFOBJECTS) -o libDataInterface.so $(INC) $(LIBOTHER)
+
+a:
+	ar rcs libDataInterface.a $(DIOBJECTS) $(SCFOBJECTS)
+
+#:: target: what
+# #:: compile command for .exe; what .o the main() is in, ahat .exe is compiled. 
+# notsoexe: $(SCFOBJECTS) $(DIOBJECTS) $(EXEOBJECTS) #not use
+# 	$(CCOMPILER) $(CFLAG) $(SCFOBJECTS) $(DIOBJECTS) $(EXEOBJECTS) -o out.exe $(INC) $(LIBOTHER)
+
+exe1:
+	rm -rf out.o
+	$(CCOMPILER) $(CFLAG) -c out.cpp -o out.o $(INC)
+	$(CCOMPILER) $(CFLAG) out.o -o out.exe $(ADDLIBPATH) $(LIBCOORDS) $(LIBOTHER) $(LIBSO)
+# $(CCOMPILER) -fPIC out.o -o out.exe $(ADDLIBPATH) $(LIBCOORDS) $(LIBOTHER) $(LIBSO)
+
+exe2:
+	rm -rf preProcess.o
+	$(CCOMPILER) $(CFLAG) -c preProcess.cpp -o preProcess.o $(INC)
+	$(CCOMPILER) $(CFLAG) preProcess.o -o preProcess.exe $(ADDLIBPATH) $(LIBCOORDS) $(LIBOTHER) $(LIBSO)
+
+#:: the below is directly, however recompile because no out.o before
+# $(CCOMPILER) -fPIC out.cpp -o out.exe $(ADDLIBPATH) $(LIBSO)

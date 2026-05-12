@@ -1,0 +1,208 @@
+###################
+# Global parameters
+###################
+# Virial velocity of the galaxy [km/s]
+v200 			        200.0
+# Virial mass of the galaxy [1e10 Msol]
+# Overrides the v200 parameter
+#m200				100.
+# Halo spin parameter
+lambda		 	        0.04
+# Refinement level of the potential grid 
+level_coarse		    	7
+# Refinement level of the plane plane density grid 
+level_grid_mid_dens		7
+# Refinement level of the turbulence grid 
+level_grid_turb		    	7
+# Refinement level of the gaussian field grid
+level_grid_dens_fluct 		7
+# Size of the potential grid [kpc]
+boxsize1		     	100.0
+boxsize2	 	        14.0
+boxsize3	 	        5.0
+# Dispersion for the Gaussian field fluctuations
+dens_fluct_sigma        	0.50
+# Physical injection scale of the random field fluctuations [kpc]
+dens_fluct_scale_inj        	2.00
+# Physical dissipation scale of the random field fluctuations [kpc]
+dens_fluct_scale_diss        	0.25
+dens_fluct_seed		    	1212
+# Seed for the random number generator
+seed			        1246
+# Switch to MCMC ntry algorithm to position particles for a value > 1
+mcmc_ntry		        10
+# Number of iterations to reach hydrostatic equilibrium (zero to deactivate)
+hydro_eq_niter			3
+
+#######################
+# Components parameters
+#######################
+
+#######################
+# Component 1: Halo
+#######################
+# Fraction of the virial mass in the component 1
+mass_frac1		        0.95
+# Number of particles for the component 1
+npart1			        4000000
+# Number of particles for the potential computation
+npart_pot1              	2000000
+# Component 1 density model
+# Available models:
+# 1  = Exponential disk + sech-z profile
+# 2  = Myamoto-Nagai profile
+# 3  = Exponential disk + exponential-z profile
+# 4  = Hernquist profile
+# 5  = Plummer profile
+# 6  = Jaffe profile
+# 7  = Isothermal profile
+# 8  = NFW profile 
+# 9  = Burkert
+# 10 = Einasto profile
+# 11 = Mestel profile
+# 12 = Kalnajs profile
+# 13 = Sersic profile
+# 14 = Toomre-Kuzmin profile
+# 15 = Uniform profile
+# 16 = Pseudo-isothermal profile
+model1			        8
+# Scale length of the density profile [kpc]
+scale_length1		    	1.
+# Concentration parameter
+# if positive, the scale length is recomputed to match the concentration
+# the concentration parameter of an NFW halo with a mass M200*mass_frac
+concentration1		    	13.0
+# Component 1 radial density cut [kpc] 
+cut1			        50.
+# Gaussian step for the MCMC Metropolis-Hasting particle postionning algorithm,
+# expressed in units of the component scale length. Default value is 0.5.
+mcmc_step1		        0.10
+# Maximum velocity for the component 1 particles in expressed in units of escape velocity
+vmax_esc1		        5.0
+# Particles type (GADGET format -- 0=Gas,1=Halo,2=Disk,3=Bulge,4=Stars)
+type1			        1
+# Streaming fraction of the component 1
+stream_fraction1	    	0.00
+# Radius at which the density profile should have the exact same
+# value as the NFW profile with the previously defined concentration
+# and with a mass M200*mass_frac [kpc]
+radius_nfw1		        1.0
+# Target mass of individual particles [Msol]
+part_mass1		        0.0
+# Cut the density function in the Jeans equation integration
+jeans_mass_cut1		    	0
+
+################################
+# Component 2: Thin stellar disk
+################################
+mass_frac2		        0.02
+npart2			        500000
+npart_pot2              	1000000
+model2			        3
+# If the value is zero and the particle type is not 1 the size is determined using the spin conservation
+# and the spin fraction initially present in the disk j_d 
+# (Fitting formula from Mo, Mao & White 1998)
+scale_length2		    	0.0
+cut2			        9.0
+flatx2			        1.00
+flaty2			        0.20
+flatz2			        0.05
+flatx_cut2              	1.00
+flaty_cut2              	1.00
+flatx_out2              	1.00
+flaty_out2              	0.20
+mcmc_step2		        0.05
+type2			        2
+stream_fraction2	    	1.00
+# Epicycle approximation in the Jeans equations
+epicycle2		        1
+# Minimal value for the Toomre parameter
+Q_lim2			        0.0
+# Past constant Star Formation Rate [Msol/yr]
+# Negative value recomptes the SFR according to Bouché et al. 2010
+SFR2               	    	-1.
+# Minimum age of the stars [Myr]
+min_age2                	0.
+# Metallicity of the stars [Zsolar]
+metal2                  	0.01
+# Gaussian fluctuations in the density field
+dens_fluct2		        0
+jeans_mass_cut2		    	1
+# Spiral winding angle [deg]
+spiral_theta_out2       	360.
+# Starting radius of the spiral arms [kpc]
+spiral_r_in2            	2.0
+# Ending radius of the spiral arms [kpc]
+spiral_r_out2           	12.0
+# Power index of the spiral arms
+spiral_alpha2           	0.
+warp_scale2             	0.50
+warp_mode2              	2
+
+
+###########################
+# Component 3: Gaseous disk
+###########################
+mass_frac3		        0.01
+npart3			        3000000
+npart_pot3              	6000000
+model3			        1
+scale_length3		    	0.
+cut3			        9.0
+flatx3			        1.00
+flaty3			        0.20
+flatz3			        0.05
+flatx_cut3             	 	1.00
+flaty_cut3              	1.00
+flatx_out3              	1.00
+flaty_out3              	0.20
+mcmc_step3		        0.05
+type3			        0
+stream_fraction3	    	1.00
+metal3                  	0.01
+# Metallicity follows density gradient
+metal_gradient3		    	1
+# Temperature of the gas particles [K]
+t_init3                 	1e5
+# Turbulent velocity dispersion [km/s]
+turb_sigma3		        0.0
+# Turbulence injection scale [kpc]
+turb_scale_inj3		        1.0
+# Turbulence dissipation scale [kpc]
+turb_scale_diss3	        0.01
+# Seed for the turbulent gaussian field
+turb_seed3		        1234
+# Compute hydrostatic equilibrium
+hydro_eq3			1
+# Gaussian step for the MCMC Metropolis-Hasting particle postionning algorithm
+# within the hydro equilibrium algorithm
+mcmc_step_hydro3	    	0.3
+spiral_theta_out3       	360.
+spiral_r_in3            	2.0
+spiral_r_out3           	12.0
+spiral_alpha3           	0.
+warp_scale3             	0.50
+warp_mode3              	2
+
+
+
+############################
+# Component 4: Stellar bulge
+############################
+mass_frac4		        0.005
+npart4			        50000
+npart_pot4              	100000
+model4			        10
+scale_length4		    	2.0
+cut4			        4.0
+flatz4			        0.80
+mcmc_step4		        0.3
+vmax_esc4		        2.0
+type4			        3
+stream_fraction4	    	0.5
+min_age4                	50.
+metal4                  	0.001
+# Structural parameter specific to the Einasto density profile
+alpha_struct5		        0.80
+Q_lim4			        1.5
+

@@ -1,0 +1,131 @@
+# =============================================================================
+# Unified settings for the entire GroArnold program. 
+# Other files: "IC_DICE_manucraft.params" for DICE prog about galaxy initial condition (you may need to reset a lot), 
+# these files has some important parameters of initial condition, e.g. mass fraction, scale length, particle count of each component, 
+# while some parameters would not strict after generating and simulation; 
+# "run.param" for gadget about Nbody simulation (you may not reset too much).
+# =============================================================================
+# These files are generated at the beginning of running:
+#   - user_settings_multi.txt         -> models list, global timeline, AA mpirun line, fit enable
+#   - IC_setting_list.txt             -> (redundant) model names, spin & IC overrides
+#   - fit model choices (formerly scattered in code / settings_* folders)
+#
+# Notes:
+# - In comments of this file, "[kept]" arguments are for debug and unused here now, so please keep the value of them.
+# - In comments of this file, "[replaceable]" arguments are safe to replace by users, so one can reset the value of them.
+# =============================================================================
+# version: 1.2
+
+# -----------------------------------------------------------------------------
+# Defaults (applies to all models unless overridden)
+# -----------------------------------------------------------------------------
+defaults:
+  workflow:
+    # #[kept] The path of parent folder of workflow_wrapper.py file
+    # path/
+    #[kept] Keep the existing galaxy_general/ tree if it exists (resume-friendly)
+    reuse_existing_galaxy: true
+    #[kept] Whether to compute foci in the triaxial-alignment module
+    is_run_foci: 1
+    #[kept] IC pipeline source: 1 = DICE, 2 = cold_python, 9 = skip
+    tag_ic: 1
+    #[kept] Whether to compute action errors from several near snapshots (slow); it should be only 0 now
+    is_run_actionerror: 0
+
+  preparation:
+    #: Some preparations about initial condition, Nbody simulation, potential and triaxiality alignment.
+    #\ For target snapshots #see "../GDDFAA/step2_Nbody_simulation/gadget/settings_and_info/run.params" for Gadget simulation, these time params must be same with them 
+    #\ Some values in user_settings_multi.txt.
+    #\ These should be consist with "./run.param" (see gadget2), the time should be larger than time of n_cut_snapshot
+    
+    #[kept] as well as time_snapshot_init, start time
+    t_start: 0.0
+    #[kept] as well as time_snapshot_final, end time
+    t_end_inclusive: 1.0
+    #[kept] time per snapshot for target
+    time_snapshot_target_interval: 0.1
+    #[kept] time per snapshot
+    time_snapshot_each: 0.1
+
+    #[replaceable] the (n_cut_snapshot+np.round(time_snapshot_init/time_snapshot_each)) is the start snapshot for actions
+    n_cut_snapshot: 10
+    #[kept] snapshot_to_compare
+    snapshot_to_compare: 10
+    #[replaceable] count of mpi processers to gadget as well as actions, which depends on your computer
+    n_mpi_gadget: 4
+    #[replaceable] whether change spin of IC manually in "is_modify_IC" in user_settings_multi.txt
+    is_modify_IC: 1
+
+    #[kept] global on/off switch equivalent to the "fit flag" line in user_settings_multi.txt, not used
+    fit_model: 1
+
+  angle_action:
+    #: [replaceable] 4 for SCF,recommanded; 1 for direct summation, without substracting self particle potential;
+    #\ 2 for tree, slow as well;
+    potential_algorithm: 4
+    #: [kept] Exactly the angle-action line that used to live in user_settings_multi.txt (kept verbatim). It would be overrided.
+    #\ (For angle-actions input #see ../GDDFAA/step3_actions/step1_preprocess/tell_shell_read_what_argv.py #the total particles count should be changed each time 
+    #\ some examples:
+    # mpirun -np 4 mains/./data.exe 0.02 0.03 0.01 0.01 0.     0 0 5     4 -1 -1 -1     0.03 0.031 1.     1 -1 0 -1 0     -3. -2. 1 1 1. 1. 1. 1. 
+    # mpirun -np 16 mains/./data.exe 0.02 0.03 0.01 0.01 0.     0 0 5     4 -1 -1 -1     0.03 0.031 1.     1 1000000 0 1000000 0     -3. -2. 1 1 1. 1. 1. 1. 
+    mpirun_line: >-
+      mpirun -np 4 mains/./data.exe 0.02 0.03 0.01 0.01 0.     0 0 5     4 -1 -1 -1     0.03 0.031 1.     1 -1 0 -1 0     -3. -2. 1 1 1. 1. 1. 1. 
+
+  fit:
+    #: Default DF models per component (this can override per model or per component)
+    #particle-type conventions:
+    # 1: halo, 2: stellar_disk, 0: gas_disk, 3: bulge 
+    #fitmodelfunc in galaxy_models and fit_galaxy_distribution_function.py
+    # is_fit_1d: True -> use legacy $J \dot \Omega$ collapse; False -> use gm.AA_combination_freeCoef(km, kn)
+    # combination: name + args; separate from fit function to make plots/resume unambiguous
+    # fit_function: any gm.fh_*; params_names: to be searched by plotter
+    # p0: initial values keyed by name for mpfit; bounds: (min, max)
+
+    # [replaceable]
+    defaults: &fit_defaults
+      is_fit_1d: true
+      fitting_model: fitting_model_MPLF_freq
+
+    # [replaceable]
+    # defaults: &fit_defaults
+    #   is_fit_1d: false
+    #   fitting_model_name: fitting_model_MPLF_freefixed
+
+    components:
+      - type: 1
+        <<: *fit_defaults
+
+      - type: 2
+        <<: *fit_defaults
+
+      - type: 0
+        <<: *fit_defaults
+
+      - type: 3
+        <<: *fit_defaults
+
+  models:
+    # Models (add as many as you want)
+    # Now the loop is for flatz1 of halo component.
+    - modelnumber: 0
+      #[replaceable] name of all models
+      models_name: Ein_multicomp_spinH_axisLH
+      # modelname: #models_name+str(modelnumber)
+      # settings_folder: #"initial_conditions/settings_"+models_name+"/"
+      
+      #DICE file in settings_folder
+      dice:
+        dice_file: IC_DICE_manucraft.params
+      
+      #this file in settings_folder
+      initial_conditions:
+        settings_file: unified_settings.yaml
+      
+      #[replaceable] override DICE value flatz1 (halo) in line3 in IC_setting_list.txt (values of various parameter)
+      flatz1: 0.79
+      #[replaceable] whether use rotating frame potential, the third value of line4 in IC_setting_list.txt (potI, inertial frame potential:0; potR, rotating frame potential: 1)
+      potential_rotating: 0
+
+    - modelnumber: 1
+      #[replaceable] override DICE value flatz1 (halo) in line3 in IC_setting_list.txt (values of various parameter)
+      flatz1: 0.39

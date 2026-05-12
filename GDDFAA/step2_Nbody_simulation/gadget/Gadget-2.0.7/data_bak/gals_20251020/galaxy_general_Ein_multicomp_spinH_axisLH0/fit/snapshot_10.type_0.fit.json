@@ -1,0 +1,26 @@
+{
+  "fit_params_names": [
+    "pn1_fit",
+    "pn2_fit",
+    "pn3_fit",
+    "pn4_fit",
+    "pn5_fit",
+    "log_penalty"
+  ],
+  "fit_params_values": [
+    167738.19290966773,
+    137617.88076446546,
+    21.055537526497993,
+    2.548151191546489,
+    0.8513299070591863,
+    0.0
+  ],
+  "snapshot_ID": 10,
+  "particle_type": 0,
+  "is_fit_1d": true,
+  "fit_function": "fh_MPLF_log10",
+  "combination": {
+    "name": "AA_combination_sumWeightFrequency_rateF1",
+    "args": []
+  }
+}
