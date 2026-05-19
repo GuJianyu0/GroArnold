@@ -5,6 +5,7 @@ import sys
 import os
 import re
 import json
+import io
 # import pdb
 # from tqdm import tqdm
 import numpy as np
@@ -2075,7 +2076,9 @@ def plot_potential_compare_offset(data_path, snapshot_ID,
 
         pot_data_path = data_path % (snapshot_ID, k)
         if not os.path.exists(pot_data_path):
-            raise FileNotFoundError(pot_data_path)
+            # raise FileNotFoundError(pot_data_path)
+            print("File `%s` not found. Skip."%(pot_data_path))
+            return 1
 
         data = np.loadtxt(pot_data_path, dtype=float, comments="#")
         if data.ndim == 1:
@@ -2789,6 +2792,7 @@ def plot_actions_3d(
     pars_kv, meta = _load_fit_meta_and_vector(fitpars_data_path_to_read)
     # params_name = list(getattr(gm, "params_name"))
     # pars = np.array([pars_kv[n] for n in params_name], dtype=float)
+    ads.DEBUG_PRINT_V(1, pars_kv, meta)
 
     pointsize = 0.2
     # pointsize = 0.1
@@ -3233,6 +3237,421 @@ def plot_NDFA_bin_and_its_fit(data_path, particle_type_select):
     print("\n\n\n\nNot here. Please run path/to/data_process/fit_galaxy_distribution_function.py, with tag 1 and 2.")
     return 0
 
+def _read_plot_before_snapshot(snapshot_path):
+    """
+    Read the text snapshot written by fit_galaxy_distribution_function.py.
+    """
+    out = {
+        "meta": {},
+        "paramsresult": {},
+        "plot_inputs": {},
+        "arrays": {},
+        "array_summaries": {},
+    }
+    if not os.path.exists(snapshot_path):
+        print("No plot-before snapshot found: %s" % (snapshot_path))
+        return None
+
+    current_name = None
+    current_lines = []
+    current_summary = None
+
+    def finish_array():
+        nonlocal current_name, current_lines, current_summary
+        if current_name is None:
+            return
+        if len(current_lines) == 0:
+            arr = None
+        else:
+            arr = np.loadtxt(io.StringIO("".join(current_lines)))
+            if current_summary is not None:
+                shp = current_summary.get("shape", None)
+                if shp is not None:
+                    try:
+                        arr = np.asarray(arr).reshape(shp)
+                    except Exception:
+                        arr = np.asarray(arr)
+        out["arrays"][current_name] = arr
+        if current_summary is not None:
+            out["array_summaries"][current_name] = current_summary
+        current_name = None
+        current_lines = []
+        current_summary = None
+
+    with open(snapshot_path, "r") as file_handle:
+        for line in file_handle:
+            if line.startswith("# meta "):
+                out["meta"] = json.loads(line[len("# meta "):])
+                continue
+            if line.startswith("# paramsresult "):
+                out["paramsresult"] = json.loads(line[len("# paramsresult "):])
+                continue
+            if line.startswith("# plot_inputs "):
+                out["plot_inputs"] = json.loads(line[len("# plot_inputs "):])
+                continue
+            if line.startswith("# BEGIN_ARRAY "):
+                finish_array()
+                current_name = line.split(None, 2)[2].strip()
+                current_lines = []
+                current_summary = None
+                continue
+            if line.startswith("# END_ARRAY "):
+                finish_array()
+                continue
+            if current_name is not None:
+                if line.startswith("# summary "):
+                    current_summary = json.loads(line[len("# summary "):])
+                elif line.startswith("#"):
+                    continue
+                elif line.strip():
+                    current_lines.append(line)
+    finish_array()
+    return out
+
+def _safe_percentile_limits(values, q=(0.05, 99.95), default=(-1.0, 1.0)):
+    a = np.asarray(values, dtype=float).reshape(-1)
+    m = np.isfinite(a)
+    if np.sum(m) == 0:
+        return default
+    if np.sum(m) >= 50:
+        lo, hi = np.percentile(a[m], q)
+    else:
+        lo, hi = np.nanmin(a[m]), np.nanmax(a[m])
+    if (not np.isfinite(lo)) or (not np.isfinite(hi)) or (hi <= lo):
+        return default
+    return float(lo), float(hi)
+
+def _fit_params_for_function(fit_function, fit_params):
+    p = np.asarray(fit_params, dtype=float).reshape(-1)
+    try:
+        n = ads.count_function_args(fit_function) - 1
+    except Exception:
+        n = len(p)
+    if n > 0 and len(p) > n:
+        p = p[:n]
+    return p
+
+def _weighted_quantile_for_hdf(values, weights, q):
+    values = np.asarray(values, dtype=float).reshape(-1)
+    weights = np.asarray(weights, dtype=float).reshape(-1)
+    q = np.asarray(q, dtype=float).reshape(-1)
+    m = np.isfinite(values) & np.isfinite(weights) & (weights > 0.0)
+    if np.sum(m) == 0:
+        return np.full(q.shape, np.nan, dtype=float)
+    v = values[m]
+    w = weights[m]
+    s = np.argsort(v)
+    v = v[s]
+    w = w[s]
+    cw = np.cumsum(w)
+    if cw[-1] <= 0.0:
+        return np.full(q.shape, np.nan, dtype=float)
+    cw = cw / cw[-1]
+    return np.interp(q, cw, v)
+
+def _expand_limits(lo, hi, frac=0.06, min_pad=0.20):
+    if (not np.isfinite(lo)) or (not np.isfinite(hi)) or hi <= lo:
+        return lo, hi
+    pad = max((hi - lo) * frac, min_pad)
+    return lo - pad, hi + pad
+
+def plot_rq_rho(snapshot_path, savename=None, is_show=False):
+    """
+    Plot position-space rq-rho from the mass-density plot-before snapshot.
+    """
+    snap = _read_plot_before_snapshot(snapshot_path)
+    if snap is None:
+        return 0
+
+    arrays = snap["arrays"]
+
+    rq_data = arrays.get("rq_data", None)
+    DF_data_log10 = arrays.get("DF_data_log10", None)
+    rq_data_bin = arrays.get("rq_data_bin", None)
+    DF_data_bin_log10 = arrays.get("DF_data_bin_log10", None)
+
+    if rq_data is None or DF_data_log10 is None or rq_data_bin is None or DF_data_bin_log10 is None:
+        print("Incomplete mass-density plot snapshot: %s" % (snapshot_path))
+        return 0
+
+    rq_data = np.asarray(rq_data, dtype=float).reshape(-1)
+    DF_data_log10 = np.asarray(DF_data_log10, dtype=float).reshape(-1)
+    rq_data_bin = np.asarray(rq_data_bin, dtype=float).reshape(-1)
+    DF_data_bin_log10 = np.asarray(DF_data_bin_log10, dtype=float).reshape(-1)
+
+    md = np.isfinite(rq_data) & (rq_data > 0.0) & np.isfinite(DF_data_log10)
+    mb = np.isfinite(rq_data_bin) & (rq_data_bin > 0.0) & np.isfinite(DF_data_bin_log10)
+
+    if np.sum(md) == 0:
+        print("No finite rq-rho data in %s" % (snapshot_path))
+        return 0
+
+    xlo_data, xhi_data = _safe_percentile_limits(np.log10(rq_data[md]), q=(0.2, 99.8))
+    xlo = xlo_data
+    xhi = xhi_data
+    if np.any(mb):
+        xlo = min(xlo, float(np.nanmin(np.log10(rq_data_bin[mb]))))
+        xhi = max(xhi, float(np.nanmax(np.log10(rq_data_bin[mb]))))
+    if (not np.isfinite(xlo)) or (not np.isfinite(xhi)) or xhi <= xlo:
+        xlo, xhi = xlo_data, xhi_data
+
+    x_visible_min = 10.0 ** xlo
+    x_visible_max = 10.0 ** xhi
+    md_vis = md & (rq_data >= x_visible_min) & (rq_data <= x_visible_max)
+    mb_vis = mb & (rq_data_bin >= x_visible_min) & (rq_data_bin <= x_visible_max)
+
+    y_parts = []
+    if np.any(md_vis):
+        y_parts.append(np.asarray(_safe_percentile_limits(DF_data_log10[md_vis], q=(0.2, 99.8)), dtype=float))
+    if np.any(mb_vis):
+        y_parts.append(DF_data_bin_log10[mb_vis])
+    if len(y_parts) == 0:
+        ylo, yhi = _safe_percentile_limits(DF_data_log10[md], q=(0.2, 99.8))
+    else:
+        y_all_visible = np.concatenate([np.asarray(v, dtype=float).reshape(-1) for v in y_parts])
+        y_all_visible = y_all_visible[np.isfinite(y_all_visible)]
+        ylo = float(np.nanmin(y_all_visible))
+        yhi = float(np.nanmax(y_all_visible))
+    ylo, yhi = _expand_limits(ylo, yhi, frac=0.08, min_pad=0.20)
+
+    nx = 160
+    ny = 120
+    x_edges = np.logspace(xlo, xhi, nx + 1)
+    y_edges = np.linspace(ylo, yhi, ny + 1)
+    H, _, _ = np.histogram2d(rq_data[md_vis], DF_data_log10[md_vis], bins=[x_edges, y_edges])
+
+    from matplotlib.colors import LogNorm
+    fig = plt.figure(dpi=400)
+    Hnz = H[H > 0]
+    vmax = max(float(np.percentile(Hnz, 99.5)), 1.0) if Hnz.size > 0 else 1.0
+    Hm = np.ma.masked_less(H, 1.0)
+    pcm = plt.pcolormesh(
+        x_edges, y_edges, Hm.T,
+        norm=LogNorm(vmin=1.0, vmax=vmax),
+        shading="auto",
+        rasterized=True,
+        alpha=0.6,
+    )
+    cbar = plt.colorbar(pcm)
+    cbar.set_label("count per bin")
+
+    y_cent = 0.5 * (y_edges[:-1] + y_edges[1:])
+    x_cent = np.sqrt(x_edges[:-1] * x_edges[1:])
+    y_lo_band = np.full(len(x_cent), np.nan, dtype=float)
+    y_hi_band = np.full(len(x_cent), np.nan, dtype=float)
+    for i_col in range(H.shape[0]):
+        wcol = H[i_col, :]
+        if np.sum(wcol) < 10:
+            continue
+        qv = _weighted_quantile_for_hdf(y_cent, wcol, [0.16, 0.84])
+        y_lo_band[i_col] = qv[0]
+        y_hi_band[i_col] = qv[1]
+    mband = (
+        np.isfinite(x_cent) & (x_cent > 0.0)
+        & np.isfinite(y_lo_band) & np.isfinite(y_hi_band)
+    )
+    # if np.any(mband):
+    #     plt.fill_between(
+    #         x_cent[mband], y_lo_band[mband], y_hi_band[mband],
+    #         color="orange", alpha=0.6, linewidth=0.0, zorder=2,
+    #         label="heatmap 16--84%"
+    #     )
+
+    if np.any(mb_vis):
+        plt.scatter(rq_data_bin[mb_vis], DF_data_bin_log10[mb_vis], color="orange", label="data bins ridge", s=2.0, zorder=3)
+
+    ax = plt.gca()
+    ax.set_xlim(x_visible_min, x_visible_max)
+    ax.set_ylim(ylo, yhi)
+    plt.legend(fontsize=12., loc='lower left') #fit DF 1d
+    plt.xscale("log")
+    plt.xlabel(r"axis-ratio radius, $r_q$ (kpc)")
+    plt.ylabel(r"log10 value of mass density, $\rho$ ($10^{10}\, M_\odot\, \mathrm{kpc}^{-3}$)")
+
+    if savename is None:
+        savename = snapshot_path.replace(".plot_before_snapshot.txt", ".png")
+    fig.savefig(savename + ".pdf", format="pdf", bbox_inches="tight", pad_inches=0.1, dpi=400)
+    if is_show:
+        plt.show()
+    plt.close(fig)
+    print("Plot rq-rho snapshot and save file to %s, done." % (savename + ".pdf"))
+    return 0
+
+def plot_actions_h_DF(snapshot_path, savename=None, is_show=False):
+    """
+    Plot h(J)-DF from the plot-before snapshot.
+
+    This intentionally does not reuse the old y-limit correction in
+    plot_simple_actions_fitting().  All visible y data are put in the same
+    raw log10(DF) convention before limits are inferred.
+    """
+    snap = _read_plot_before_snapshot(snapshot_path)
+    if snap is None:
+        return 0
+
+    meta = snap["meta"]
+    plot_inputs = snap["plot_inputs"]
+    arrays = snap["arrays"]
+
+    h = arrays.get("h_from_tgts_sub", None)
+    log10_DF_sub = arrays.get("log10_DF_sub", None)
+    hbd = arrays.get("hbd", None)
+    fbd = arrays.get("fbd", None)
+    fit_params = arrays.get("fit_params_list", None)
+
+    if h is None or log10_DF_sub is None or hbd is None or fbd is None or fit_params is None:
+        print("Incomplete plot-before snapshot: %s" % (snapshot_path))
+        return 0
+
+    h = np.asarray(h, dtype=float).reshape(-1)
+    log10_DF_sub = np.asarray(log10_DF_sub, dtype=float).reshape(-1)
+    hbd = np.asarray(hbd, dtype=float).reshape(-1)
+    fbd = np.asarray(fbd, dtype=float).reshape(-1)
+
+    M0_selected_fit = plot_inputs.get("M0_selected_fit", None)
+    if M0_selected_fit is None:
+        M0_selected_fit = snap["paramsresult"].get("M0_selected_fit", None)
+    if M0_selected_fit is None or float(M0_selected_fit) <= 0.0:
+        print("Bad M0_selected_fit in snapshot: %s" % (snapshot_path))
+        return 0
+    M0_selected_fit = float(M0_selected_fit)
+    dy = np.log10(M0_selected_fit)
+
+    fit_function_name = meta.get("fit_function", plot_inputs.get("fit_function_name", ""))
+    fit_function = getattr(gm, fit_function_name, None)
+    if fit_function is None:
+        print("Unknown fit function '%s' in %s" % (fit_function_name, snapshot_path))
+        return 0
+    fit_params = _fit_params_for_function(fit_function, fit_params)
+
+    ybd_plot = fbd + dy
+    yfit_plot = None
+    with np.errstate(divide="ignore", invalid="ignore"):
+        try:
+            yfit_plot = np.asarray(fit_function(hbd, *fit_params), dtype=float).reshape(-1) + dy
+        except Exception as exc:
+            print("Failed to evaluate fit function for %s: %s" % (snapshot_path, repr(exc)))
+
+    mh = np.isfinite(h) & (h > 0.0) & np.isfinite(log10_DF_sub)
+    mb = np.isfinite(hbd) & (hbd > 0.0) & np.isfinite(ybd_plot)
+    mf = np.zeros_like(mb, dtype=bool)
+    if yfit_plot is not None and yfit_plot.shape == hbd.shape:
+        mf = np.isfinite(hbd) & (hbd > 0.0) & np.isfinite(yfit_plot)
+
+    if np.sum(mh) == 0:
+        print("No finite h-DF data in %s" % (snapshot_path))
+        return 0
+
+    x_lim_down = plot_inputs.get("x_lim_down", None)
+    x_lim_up = plot_inputs.get("x_lim_up", None)
+    xlog = np.log10(h[mh])
+    xlo_data, xhi_data = _safe_percentile_limits(xlog)
+    xlo = xlo_data
+    xhi = xhi_data
+    if np.any(mb):
+        xlo = min(xlo, float(np.nanmin(np.log10(hbd[mb]))))
+        xhi = max(xhi, float(np.nanmax(np.log10(hbd[mb]))))
+    if x_lim_down is not None and float(x_lim_down) > 0.0:
+        xlo = np.log10(float(x_lim_down))
+    if x_lim_up is not None and float(x_lim_up) > 0.0:
+        xhi = min(xhi, np.log10(float(x_lim_up)))
+    if (not np.isfinite(xlo)) or (not np.isfinite(xhi)) or xhi <= xlo:
+        xlo, xhi = xlo_data, xhi_data
+
+    x_visible_min = 10.0 ** xlo
+    x_visible_max = 10.0 ** xhi
+    mh_vis = mh & (h >= x_visible_min) & (h <= x_visible_max)
+    mb_vis = mb & (hbd >= x_visible_min) & (hbd <= x_visible_max)
+    mf_vis = mf & (hbd >= x_visible_min) & (hbd <= x_visible_max)
+
+    y_parts = []
+    if np.any(mh_vis):
+        y_parts.append(log10_DF_sub[mh_vis])
+    if np.any(mb_vis):
+        y_parts.append(ybd_plot[mb_vis])
+    if np.any(mf_vis):
+        y_parts.append(yfit_plot[mf_vis])
+    if len(y_parts) == 0:
+        ylo, yhi = _safe_percentile_limits(log10_DF_sub[mh])
+    else:
+        y_all_visible = np.concatenate([np.asarray(v, dtype=float).reshape(-1) for v in y_parts])
+        ylo = float(np.nanmin(y_all_visible[np.isfinite(y_all_visible)]))
+        yhi = float(np.nanmax(y_all_visible[np.isfinite(y_all_visible)]))
+    ylo, yhi = _expand_limits(ylo, yhi, frac=0.08, min_pad=0.25)
+
+    heatmap_nx = 60
+    heatmap_ny = 40
+    nx = int(np.clip(int(heatmap_nx), 120, 220))
+    ny = int(np.clip(int(heatmap_ny), 90, 180))
+    x_edges = np.logspace(xlo, xhi, nx + 1)
+    y_edges = np.linspace(ylo, yhi, ny + 1)
+    H, _, _ = np.histogram2d(h[mh_vis], log10_DF_sub[mh_vis], bins=[x_edges, y_edges])
+
+    from matplotlib.colors import LogNorm
+    fig = plt.figure(dpi=400)
+    Hnz = H[H > 0]
+    vmax = max(float(np.percentile(Hnz, 99.5)), 1.0) if Hnz.size > 0 else 1.0
+    Hm = np.ma.masked_less(H, 1.0)
+    pcm = plt.pcolormesh(
+        x_edges, y_edges, Hm.T,
+        norm=LogNorm(vmin=1.0, vmax=vmax),
+        shading="auto",
+        rasterized=True,
+        alpha=0.6,
+    )
+    cbar = plt.colorbar(pcm)
+    cbar.set_label("count per bin")
+
+    qlo, qhi = 16.0, 84.0
+    y_cent = 0.5 * (y_edges[:-1] + y_edges[1:])
+    x_cent = np.sqrt(x_edges[:-1] * x_edges[1:])
+    y_lo_band = np.full(len(x_cent), np.nan, dtype=float)
+    y_hi_band = np.full(len(x_cent), np.nan, dtype=float)
+    for i_col in range(H.shape[0]):
+        wcol = H[i_col, :]
+        if np.sum(wcol) < 10:
+            continue
+        qv = _weighted_quantile_for_hdf(y_cent, wcol, [qlo / 100.0, qhi / 100.0])
+        y_lo_band[i_col] = qv[0]
+        y_hi_band[i_col] = qv[1]
+    mband = (
+        np.isfinite(x_cent) & (x_cent > 0.0)
+        & np.isfinite(y_lo_band) & np.isfinite(y_hi_band)
+    )
+    if np.any(mband):
+        plt.fill_between(
+            x_cent[mband], y_lo_band[mband], y_hi_band[mband],
+            color="orange", alpha=0.6, linewidth=0.0, zorder=2,
+            label="heatmap 16--84%"
+        )
+
+    if np.any(mb_vis):
+        plt.scatter(hbd[mb_vis], ybd_plot[mb_vis], color="orange", label="data bins ridge", s=1.0, zorder=3)
+    if np.any(mf_vis):
+        plt.plot(hbd[mf_vis], yfit_plot[mf_vis], color="red", label="fit", lw=0.5, zorder=3)
+
+    ax = plt.gca()
+    ax.set_xlim(x_visible_min, x_visible_max)
+    ax.set_ylim(ylo, yhi)
+
+    plt.legend(fontsize=12., loc='lower left') #fit DF 1d
+    plt.xscale("log")
+    plt.xlabel(r"value of combination of actions, $h(\mathbf{J})$ ($\mathrm{kpc\, km/s)}$")
+    plt.ylabel(
+        rf"$\log_{{10}}\, f(\mathbf{{J}})$ "
+        rf"$\,[\mathrm{{M_{{sel}}\,(kpc\,km\,s^{{-1}})^{{-3}}}}]"
+        rf"\quad (M_{{\mathrm{{sel}}}}={M0_selected_fit:.2f}\times10^{{10}}\,M_\odot)$"
+    )
+
+    if savename is None:
+        savename = snapshot_path.replace(".plot_before_snapshot.txt", ".png")
+    fig.savefig(savename + ".pdf", format="pdf", bbox_inches="tight", pad_inches=0.1, dpi=400)
+    if is_show:
+        plt.show()
+    plt.close(fig)
+    print("Plot h-DF snapshot and save file to %s, done." % (savename + ".pdf"))
+    return 0
+
 def plot_params_relation_xv_OJ(data_path):
     '''
     Run path/to/data_process/fit_galaxy_distribution_function.py, with tag 3.
@@ -3253,7 +3672,7 @@ if __name__ == '__main__':
         type_list = [1]
 
     ## [] not loop
-    # if 0: #debug, only run loop
+    # if 0: #debug, only run the below loop
     if 1: #run all
         ## (0) debug
         # plot_info = "debug"
@@ -3356,6 +3775,30 @@ if __name__ == '__main__':
             particle_type_select=gadget_type
         ) #plot
         print("Plot (%d) %s. Done."%(6, plot_info))
+
+        ## (6) rq-rho mass-density fit from plot-before snapshot
+        plot_info = "rq_rho"
+        snapshot_path = save_single_path + "snapshot_%d.fit.txt.massdensity.type_%d.plot_before_snapshot.txt" % (
+            snapshot_ID, int(gadget_type)
+        )
+        savename = save_single_path + "snapshot_%d.fit.txt.massdensity.type_%d.png" % (
+            snapshot_ID, int(gadget_type)
+        )
+        plot_rq_rho(snapshot_path, savename=savename, is_show=is_show)
+        print("Plot (%d) %s. Done."%(6, plot_info))
+        # sys.exit(2) #debug
+
+        ## (6) h-DF fit from plot-before snapshot
+        plot_info = "actions_h_DF"
+        snapshot_path = save_single_path + "snapshot_%d.type_%d.fit.txt.plot_before_snapshot.txt" % (
+            snapshot_ID, int(gadget_type)
+        )
+        savename = save_single_path + "snapshot_%d.type_%d.fit.txt.png" % (
+            snapshot_ID, int(gadget_type)
+        )
+        plot_actions_h_DF(snapshot_path, savename=savename, is_show=is_show)
+        print("Plot (%d) %s. Done."%(6, plot_info))
+        # sys.exit(2) #debug
 
         ## (7) actions all in 2d by various method
         plot_info = "actions_2d"

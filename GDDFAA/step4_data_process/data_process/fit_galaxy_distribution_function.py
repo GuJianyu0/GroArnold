@@ -1789,6 +1789,206 @@ def _weighted_quantile_1d(values, weights, q):
     cw = cw / cw[-1]
     return np.interp(q, cw, v)
 
+def _snapshot_array_summary(arr):
+    if arr is None:
+        return {"present": False}
+    a = np.asarray(arr)
+    out = {
+        "present": True,
+        "shape": list(a.shape),
+        "dtype": str(a.dtype),
+        "size": int(a.size),
+    }
+    if a.size == 0:
+        out.update({
+            "finite_count": 0,
+            "nan_count": 0,
+            "posinf_count": 0,
+            "neginf_count": 0,
+        })
+        return out
+    af = np.asarray(a, dtype=float).reshape(-1)
+    finite = np.isfinite(af)
+    out.update({
+        "finite_count": int(np.sum(finite)),
+        "nan_count": int(np.sum(np.isnan(af))),
+        "posinf_count": int(np.sum(np.isposinf(af))),
+        "neginf_count": int(np.sum(np.isneginf(af))),
+    })
+    if np.any(finite):
+        vals = af[finite]
+        out.update({
+            "min": float(np.min(vals)),
+            "max": float(np.max(vals)),
+            "percentiles": {
+                "0": float(np.percentile(vals, 0.0)),
+                "0.05": float(np.percentile(vals, 0.05)),
+                "1": float(np.percentile(vals, 1.0)),
+                "16": float(np.percentile(vals, 16.0)),
+                "50": float(np.percentile(vals, 50.0)),
+                "84": float(np.percentile(vals, 84.0)),
+                "99": float(np.percentile(vals, 99.0)),
+                "99.95": float(np.percentile(vals, 99.95)),
+                "100": float(np.percentile(vals, 100.0)),
+            },
+        })
+    return out
+
+def _json_safe(obj):
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+    return str(obj)
+
+def _write_snapshot_array(file_handle, name, arr, columns=None):
+    file_handle.write(f"# BEGIN_ARRAY {name}\n")
+    if arr is None:
+        file_handle.write("# present false\n")
+        file_handle.write(f"# END_ARRAY {name}\n")
+        return
+    if isinstance(arr, dict):
+        file_handle.write("# present true\n")
+        file_handle.write("# json " + json.dumps(_json_safe(arr), sort_keys=True) + "\n")
+        file_handle.write(f"# END_ARRAY {name}\n")
+        return
+    a = np.asarray(arr)
+    file_handle.write("# summary " + json.dumps(_snapshot_array_summary(a), sort_keys=True) + "\n")
+    if columns is not None:
+        file_handle.write("# columns " + " ".join(columns) + "\n")
+    if a.size == 0:
+        file_handle.write("# empty array\n")
+    else:
+        if a.ndim == 0:
+            a_write = a.reshape(1, 1)
+        elif a.ndim == 1:
+            a_write = a.reshape(-1, 1)
+        else:
+            a_write = a.reshape(a.shape[0], -1)
+        np.savetxt(file_handle, a_write, fmt="%.18e")
+    file_handle.write(f"# END_ARRAY {name}\n")
+
+def save_plot_before_snapshot(
+    snapshot_path,
+    meta,
+    paramsresult,
+    fit_function_name,
+    fit_params_list,
+    M0_selected_fit,
+    hbd,
+    fbd,
+    auxiliary_function_plot2d_x,
+    auxiliary_function_plot2d_args,
+    tgts_sub,
+    DF_sub,
+    x_lim_down,
+    x_lim_up,
+    is_fit_1d,
+    fit_uncertainty=None,
+):
+    _aux_args = auxiliary_function_plot2d_args
+    if _aux_args is None:
+        _aux_args = ()
+    else:
+        _aux_args = tuple(a for a in _aux_args if a is not None)
+
+    h_from_tgts_sub = None
+    h_error = None
+    try:
+        h_from_tgts_sub = auxiliary_function_plot2d_x(tgts_sub, *_aux_args)
+    except Exception as exc:
+        h_error = repr(exc)
+
+    log10_DF_sub = None
+    with np.errstate(divide="ignore", invalid="ignore"):
+        log10_DF_sub = np.log10(np.asarray(DF_sub, dtype=float))
+
+    plot_inputs = {
+        "path": snapshot_path,
+        "fit_function_name": fit_function_name,
+        "M0_selected_fit": float(M0_selected_fit) if M0_selected_fit is not None else None,
+        "log10_M0_selected_fit": float(np.log10(M0_selected_fit)) if M0_selected_fit is not None and M0_selected_fit > 0.0 else None,
+        "is_fit_1d": bool(is_fit_1d),
+        "x_lim_down": None if x_lim_down is None else float(x_lim_down),
+        "x_lim_up": None if x_lim_up is None else float(x_lim_up),
+        "y_plot_limits": "computed inside plot_simple_actions_fitting after matplotlib autoscale",
+        "auxiliary_function_plot2d_x": getattr(auxiliary_function_plot2d_x, "__name__", str(auxiliary_function_plot2d_x)),
+        "auxiliary_function_plot2d_args": [float(v) for v in _aux_args],
+        "h_from_tgts_sub_error": h_error,
+        "fit_uncertainty_present": fit_uncertainty is not None,
+    }
+
+    with open(snapshot_path, "w") as file_handle:
+        file_handle.write("# plot-before snapshot for action-angle fitting\n")
+        file_handle.write("# This file is written before plot_simple_actions_fitting is called.\n")
+        file_handle.write("# It records current inputs only; it does not change fitting or plotting behavior.\n")
+        file_handle.write("# meta " + json.dumps(_json_safe(meta), sort_keys=True) + "\n")
+        file_handle.write("# paramsresult " + json.dumps(_json_safe(paramsresult), sort_keys=True) + "\n")
+        file_handle.write("# plot_inputs " + json.dumps(_json_safe(plot_inputs), sort_keys=True) + "\n")
+        _write_snapshot_array(file_handle, "fit_params_list", fit_params_list)
+        _write_snapshot_array(file_handle, "hbd", hbd, columns=["hbd"])
+        _write_snapshot_array(file_handle, "fbd", fbd, columns=["fbd_log10_DF_unit"])
+        _write_snapshot_array(
+            file_handle,
+            "h_from_tgts_sub",
+            h_from_tgts_sub,
+            columns=["h_from_tgts_sub"],
+        )
+        _write_snapshot_array(
+            file_handle,
+            "tgts_sub",
+            tgts_sub,
+            columns=["J_l", "J_m", "J_n", "Omega_l", "Omega_m", "Omega_n"],
+        )
+        _write_snapshot_array(file_handle, "DF_sub", DF_sub, columns=["DF_sub"])
+        _write_snapshot_array(file_handle, "log10_DF_sub", log10_DF_sub, columns=["log10_DF_sub"])
+        _write_snapshot_array(file_handle, "fit_uncertainty", fit_uncertainty)
+    print("Write plot-before snapshot to %s, done." % (snapshot_path))
+    return snapshot_path
+
+def save_massdensity_plot_snapshot(
+    snapshot_path,
+    meta,
+    rq_data,
+    DF_data_log10,
+    rq_data_bin,
+    DF_data_bin_log10,
+    DF_fitvalue_log10,
+    fit_params,
+    q_axisratio,
+):
+    plot_inputs = {
+        "path": snapshot_path,
+        "fit_function_name": "rhorq_DPL_rhos_rs_log10",
+        "x_coordinate": "axis-ratio radius rq",
+        "y_coordinate": "log10 mass density",
+        "x_scale": "log",
+        "y_plot_limits": "computed inside plot_rq_rho from visible rq-rho data",
+    }
+
+    with open(snapshot_path, "w") as file_handle:
+        file_handle.write("# plot-before snapshot for position-space mass-density fitting\n")
+        file_handle.write("# This file is written before plot_1d_fit_massdensity is called.\n")
+        file_handle.write("# It records current inputs only; it does not change fitting or plotting behavior.\n")
+        file_handle.write("# meta " + json.dumps(_json_safe(meta), sort_keys=True) + "\n")
+        file_handle.write("# paramsresult " + json.dumps(_json_safe({}), sort_keys=True) + "\n")
+        file_handle.write("# plot_inputs " + json.dumps(_json_safe(plot_inputs), sort_keys=True) + "\n")
+        _write_snapshot_array(file_handle, "fit_params_list", fit_params)
+        _write_snapshot_array(file_handle, "q_axisratio", q_axisratio, columns=["qx", "qy", "qz"])
+        _write_snapshot_array(file_handle, "rq_data", rq_data, columns=["rq_data"])
+        _write_snapshot_array(file_handle, "DF_data_log10", DF_data_log10, columns=["DF_data_log10"])
+        _write_snapshot_array(file_handle, "rq_data_bin", rq_data_bin, columns=["rq_data_bin"])
+        _write_snapshot_array(file_handle, "DF_data_bin_log10", DF_data_bin_log10, columns=["DF_data_bin_log10"])
+        _write_snapshot_array(file_handle, "DF_fitvalue_log10", DF_fitvalue_log10, columns=["DF_fitvalue_log10"])
+    print("Write mass-density plot-before snapshot to %s, done." % (snapshot_path))
+    return snapshot_path
+
 def plot_simple_actions_fitting(
     fit_function, fit_params_list, pathfig, JOb=None, DF_log10=None, 
     auxiliary_function_plot2d_x=None, auxiliary_function_plot2d_args=None, 
@@ -2366,6 +2566,26 @@ if __name__ == '__main__':
                 main_step4_mpfit_fit_DF_x_mass_brief(tgts[:,0:3], DF, mass)
             path_file_data = galaxyfit_name+"snapshot_%d.fit.txt"%(snapshot_ID)
             pathfig = path_file_data+".massdensity.type_%d.png"%(gadget_type)
+            massdensity_plot_snapshot_path = path_file_data + ".massdensity.type_%d.plot_before_snapshot.txt" % (gadget_type)
+            massdensity_meta = {
+                "fit_params_names": ["rs", "rhos", "p1", "p2"],
+                "fit_params_values": [float(v) for v in np.asarray(fit_params, dtype=float).reshape(-1)],
+                "snapshot_ID": int(snapshot_ID),
+                "particle_type": int(gadget_type),
+                "fit_function": "rhorq_DPL_rhos_rs_log10",
+                "q_axisratio": [float(v) for v in np.asarray(q_axisratio, dtype=float).reshape(-1)],
+            }
+            save_massdensity_plot_snapshot(
+                snapshot_path=massdensity_plot_snapshot_path,
+                meta=massdensity_meta,
+                rq_data=rq_data,
+                DF_data_log10=DF_data_log10,
+                rq_data_bin=rq_data_bin,
+                DF_data_bin_log10=DF_data_bin_log10,
+                DF_fitvalue_log10=DF_fitvalue_log10,
+                fit_params=fit_params,
+                q_axisratio=q_axisratio,
+            )
             DF_fitvalue_log10 = None #if not display fit
             plot_1d_fit_massdensity(rq_data, DF_data_log10, rq_data_bin, DF_data_bin_log10, DF_fitvalue_log10, pathfig)
             # paramsresult = None #to compare paramsresult
@@ -2486,6 +2706,25 @@ if __name__ == '__main__':
             fit_uncertainty = None
             x_lim_down = None
             x_lim_up = h_far_display
+            snapshot_path = path_file_data_types + ".plot_before_snapshot.txt"
+            save_plot_before_snapshot(
+                snapshot_path=snapshot_path,
+                meta=meta,
+                paramsresult=paramsresult,
+                fit_function_name=fitmodelfunc[0][1],
+                fit_params_list=fitmodelfunc[0][4],
+                M0_selected_fit=M0_selected_fit,
+                hbd=hbd,
+                fbd=fbd,
+                auxiliary_function_plot2d_x=auxiliary_function_plot2d_x,
+                auxiliary_function_plot2d_args=auxiliary_function_plot2d_args,
+                tgts_sub=tgts_sub,
+                DF_sub=DF_sub,
+                x_lim_down=x_lim_down,
+                x_lim_up=x_lim_up,
+                is_fit_1d=is_fit_1d,
+                fit_uncertainty=fit_uncertainty,
+            )
             plot_simple_actions_fitting(
                 fitmodelfunc[0][0], fitmodelfunc[0][4], pathfig, hbd, fbd, 
                 auxiliary_function_plot2d_x, auxiliary_function_plot2d_args, M0_selected_fit, 
